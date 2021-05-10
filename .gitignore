@@ -1,0 +1,31 @@
+# FILES
+*.VC.db
+*.VC.opendb
+*.sdf
+*.pdb
+*.dll
+*.exe
+*.ilk
+*.lib
+*.opensdf
+*.idb
+*.suo
+*.dylib
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.txt
+
+pch - Copy (2).cpp
+pch - Copy.cpp
+pch__.cpp
+pch____.cpp
+pch_test.cpp
+
+#Folders
+Debug/
+glm/
+Release/
+x64/
+.vs/

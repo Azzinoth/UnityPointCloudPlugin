@@ -1,0 +1,397 @@
+#pragma once
+
+//#define FULL_LOGGING
+#define MAIN_EVENTS_LOGGING
+
+#include <vector>
+#define GLM_FORCE_XYZW_ONLY
+#include "glm/ext/vector_double3.hpp"
+#include "glm/gtc/type_ptr.hpp"
+#include "glm/mat4x4.hpp"
+//#include "glm/vec3.hpp"
+
+#include <d3d11.h>
+
+struct MeshVertex
+{
+    glm::vec3 position;
+    byte color[4];
+};
+
+static std::vector<MeshVertex>* rawDataPointer;
+static int deletedCount = 0;
+static const int capacity = 10000;
+static float sqrtTwo = sqrt(2.0f);
+static int count = 0;
+//static std::vector<int> indicesToDelete;
+static int debugMaxNodeDepth = 0;
+static int debugNodeCount = 0;
+
+class AABB
+{
+public:
+    glm::vec3 min = glm::vec3(0.0f);
+    glm::vec3 max = glm::vec3(0.0f);
+
+    float size = 0.0;
+
+    AABB() {}
+
+    AABB(glm::vec3 center, float Size)
+    {
+        float halfSize = Size / 2.0f;
+    /*AABB(glm::vec3 center, float size)
+    {
+        float halfSize = size / 2.0f;*/
+        min[0] = center[0] - halfSize;
+        min[1] = center[1] - halfSize;
+        min[2] = center[2] - halfSize;
+
+        max[0] = center[0] + halfSize;
+        max[1] = center[1] + halfSize;
+        max[2] = center[2] + halfSize;
+
+        size = abs(max.x - min.x);
+        if (abs(max.y - min.y) > size)
+            size = abs(max.y - min.y);
+
+        if (abs(max.z - min.z) > size)
+            size = abs(max.z - min.z);
+    }
+};
+
+class debugNodeBox
+{
+public:
+    glm::vec3 center;
+    float size;
+    int depth;
+
+    debugNodeBox(glm::vec3 center, float size, int depth)
+    {
+        this->center = center;
+        this->size = size;
+        this->depth = depth;
+    }
+};
+
+static std::vector<debugNodeBox> nodesPositionAndSize;
+
+class octree;
+class octreeNode
+{
+public:
+    glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.0f);
+    float size = 0.0f;
+    float diagonal = 0.0f;
+    bool childsInitialized = false;
+    octreeNode* parent;
+    octreeNode** childs;
+    std::vector<int> objects;
+    int depth = 0;
+    AABB nodeAABB;
+
+    octreeNode()
+    {
+        depth = 0;
+        size = 0.0f;
+        center = glm::vec3(0.0f);
+        diagonal = 0.0f;
+        childs = nullptr;
+        parent = nullptr;
+    }
+
+    octreeNode(float Size, glm::vec3 Center, int Depth)
+    {
+        if (debugMaxNodeDepth < Depth)
+            debugMaxNodeDepth = Depth;
+        depth = Depth;
+        size = Size;
+        center = Center;
+        diagonal = sqrtTwo * size;
+        childs = nullptr;
+        parent = nullptr;
+        nodeAABB = AABB(Center, Size);
+    }
+
+    ~octreeNode()
+    {
+        if (childsInitialized)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                delete childs[i];
+                //debugLog::getInstance().addToLog("child " + std::to_string(i) + " was deleted", "OctreeMemory");
+            }
+        }
+    }
+
+    void initChilds()
+    {
+        debugNodeCount += 8;
+#ifdef FULL_LOGGING
+        debugLog::getInstance().addToLog("8 nodes added. In total: " + std::to_string(debugNodeCount), "OctreeEvents");
+#endif
+        childsInitialized = true;
+        childs = new octreeNode*[8];
+
+        // upper top left
+        childs[0] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, size / 4.0f, -size / 4.0f), depth + 1);
+        childs[0]->parent = this;
+        // upper top right
+        childs[1] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, size / 4.0f, -size / 4.0f), depth + 1);
+        childs[1]->parent = this;
+        // upper bottom left
+        childs[2] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, size / 4.0f, size / 4.0f), depth + 1);
+        childs[2]->parent = this;
+        // upper bottom right
+        childs[3] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, size / 4.0f, size / 4.0f), depth + 1);
+        childs[3]->parent = this;
+
+        // down top left
+        childs[4] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, -size / 4.0f, -size / 4.0f), depth + 1);
+        childs[4]->parent = this;
+        // down top right
+        childs[5] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, -size / 4.0f, -size / 4.0f), depth + 1);
+        childs[5]->parent = this;
+        // down bottom left
+        childs[6] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, -size / 4.0f, size / 4.0f), depth + 1);
+        childs[6]->parent = this;
+        // down bottom right
+        childs[7] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, -size / 4.0f, size / 4.0f), depth + 1);
+        childs[7]->parent = this;
+    }
+
+    bool addObject(glm::vec3& point, int index)
+    {
+#ifdef FULL_LOGGING
+        debugLog::getInstance().addToLog("point to add: ", point, "OctreeEvents");
+#endif
+
+        bool instersect = true;
+        if (point.x < nodeAABB.min[0] || point.x > nodeAABB.max[0]) instersect = false;
+        if (point.y < nodeAABB.min[1] || point.y > nodeAABB.max[1]) instersect = false;
+        if (point.z < nodeAABB.min[2] || point.z > nodeAABB.max[2]) instersect = false;
+
+#ifdef FULL_LOGGING
+        debugLog::getInstance().addToLog("point was: " + instersect ? "accepted" : "rejected", "OctreeEvents");
+#endif
+
+        if (objects.size() < capacity && instersect)
+        {
+            objects.push_back(index);
+            return true;
+        }
+        else if (instersect)
+        {
+            if (!childsInitialized)
+            {
+                initChilds();
+            }
+
+            for (int i = 0; i < 8; i++)
+            {
+                if (childs[i]->addObject(point, index))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    void deleteObjects(glm::vec3& Center, float Radius, std::vector<int>& pointsToDelete)
+    {
+        double currentDistance = distance(center, Center);
+        if (currentDistance > Radius + diagonal)
+        {
+            return;
+        }
+        else if (Radius > currentDistance + diagonal)
+        {
+            deleteAllObjects(this, pointsToDelete);
+            return;
+        }
+
+        for (int i = 0; i < objects.size(); i++)
+        {
+            currentDistance = distance(rawDataPointer->operator[](objects[i]).position, Center);
+            if (currentDistance < Radius)
+            {
+                deletedCount++;
+                pointsToDelete.push_back(objects[i]);
+            }
+        }
+
+        if (childsInitialized)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                childs[i]->deleteObjects(Center, Radius, pointsToDelete);
+            }
+        }
+    }
+    void deleteAllObjects(octreeNode* node, std::vector<int>& pointsToDelete)
+    {
+        for (int i = 0; i < objects.size(); i++)
+        {
+            deletedCount++;
+            pointsToDelete.push_back(objects[i]);
+        }
+
+        if (childsInitialized)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                childs[i]->deleteAllObjects(this, pointsToDelete);
+            }
+        }
+    }
+
+    void debugGetNodesPositionAndSize(std::vector<debugNodeBox>& result)
+    {
+        result.push_back(debugNodeBox(this->center, this->size, this->depth));
+
+        if (childsInitialized)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                childs[i]->debugGetNodesPositionAndSize(result);
+            }
+        }
+    }
+};
+
+class octree
+{
+    friend octreeNode;
+public:
+    octreeNode* root;
+    std::vector<int> pointsToDelete;
+
+    octree()
+    {
+        root = nullptr;
+    }
+
+    octree(float worldSize, glm::vec3 worldCenter, std::vector<MeshVertex>* RawData)
+    {
+        initialize(worldSize, worldCenter, RawData);
+    }
+
+    ~octree()
+    {
+        delete root;
+    }
+
+    void initialize(float worldSize, glm::vec3 worldCenter, std::vector<MeshVertex>* RawData)
+    {
+        // Reset all debug counters
+        deletedCount = 0;
+        debugMaxNodeDepth = 0;
+        debugNodeCount = 0;
+
+        root = new octreeNode(worldSize, worldCenter, 0);
+        root->parent = root;
+        rawDataPointer = RawData;
+
+#ifdef MAIN_EVENTS_LOGGING
+        debugLog::getInstance().addToLog("creating octree...", "OctreeEvents");
+        debugLog::getInstance().addToLog("World size: " + std::to_string(worldSize), "OctreeEvents");
+        debugLog::getInstance().addToLog("World center: ", worldCenter, "OctreeEvents");
+        debugLog::getInstance().addToLog("Raw data size: " + std::to_string(RawData->size()), "OctreeEvents");
+#endif
+    }
+
+    bool addObject(int index)
+    {
+#ifdef FULL_LOGGING
+        debugLog::getInstance().addToLog("point to add: ", rawData[index], "OctreeEvents");
+#endif
+        return root->addObject(rawDataPointer->operator[](index).position, index);
+    }
+
+    void deleteObjects(glm::vec3& Center, float Radius)
+    {
+#ifdef MAIN_EVENTS_LOGGING
+        DWORD time = GetTickCount();
+        deletedCount = 0;
+#endif
+        root->deleteObjects(Center, Radius, this->pointsToDelete);
+#ifdef MAIN_EVENTS_LOGGING
+        debugLog::getInstance().addToLog("========= BEGIN OF DELETE EVENT =========", "OctreeEvents");
+        debugLog::getInstance().addToLog("Center at ", Center, "OctreeEvents");
+        debugLog::getInstance().addToLog("Radius: " + std::to_string(Radius), "OctreeEvents");
+        debugLog::getInstance().addToLog("Points was deleted: " + std::to_string(deletedCount), "OctreeEvents");
+        debugLog::getInstance().addToLog("Time was spent: " + std::to_string(time - GetTickCount()) + " ms", "OctreeEvents");
+        debugLog::getInstance().addToLog("========= END OF DELETE EVENT =========", "OctreeEvents");
+#endif
+    }
+
+    std::vector<debugNodeBox>& debugGetNodesPositionAndSize()
+    {
+        root->debugGetNodesPositionAndSize(nodesPositionAndSize);
+        return nodesPositionAndSize;
+    }
+
+    int getDebugNodeCount()
+    {
+        return debugNodeCount;
+    }
+
+    /*void fillToDeleteArray()
+    {
+        pointsToDelete.resize(indicesToDelete.size());
+        for (size_t i = 0; i < indicesToDelete.size(); i++)
+        {
+            pointsToDelete[i] = indicesToDelete[i];
+        }
+
+        indicesToDelete.clear();
+    }*/
+
+    /*void getToDelete(std::vector<int>& arrayToFill)
+    {
+        arrayToFill.resize(pointsToDelete.size());
+        for (size_t i = 0; i < pointsToDelete.size(); i++)
+        {
+            arrayToFill[i] = pointsToDelete[i];
+        }
+
+        pointsToDelete.clear();
+    }*/
+
+    int getDebugMaxNodeDepth()
+    {
+        return debugMaxNodeDepth;
+    }
+
+    bool isInOctreeBound(glm::vec3& Center, float Radius)
+    {
+#ifdef MAIN_EVENTS_LOGGING
+        debugLog::getInstance().addToLog("========= BEGIN OF isInOctreeBound EVENT =========", "OctreeEvents");
+        debugLog::getInstance().addToLog("Center at ", Center, "OctreeEvents");
+        debugLog::getInstance().addToLog("Radius: " + std::to_string(Radius), "OctreeEvents");
+
+        if (distance(root->center, Center) > Radius + root->diagonal)
+        {
+            debugLog::getInstance().addToLog("Result: false", "OctreeEvents");
+            debugLog::getInstance().addToLog("========= END OF isInOctreeBound EVENT =========", "OctreeEvents");
+            return false;
+        }
+        
+        debugLog::getInstance().addToLog("Result: true", "OctreeEvents");
+        debugLog::getInstance().addToLog("========= END OF isInOctreeBound EVENT =========", "OctreeEvents");
+        return true;
+#else
+        if (distance(root->center, Center) > Radius + root->diagonal)
+            return false;
+
+        return true;
+#endif
+    }
+
+    void updateRawDataPointer(std::vector<MeshVertex>* RawData)
+    {
+        rawDataPointer = RawData;
+    }
+};
