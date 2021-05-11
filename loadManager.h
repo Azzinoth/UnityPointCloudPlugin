@@ -29,6 +29,7 @@ public:
 	std::vector<MeshVertex> vertexInfo;
 	std::vector<float> vertexIntensity;
 	bool wasInitialized = false;
+	bool wasFullyLoaded = false;
 	LAZFileInfo* loadedFrom = nullptr;
 	glm::vec3 min;
 	glm::vec3 max;
@@ -61,7 +62,7 @@ public:
 
 	void initializeOctree(double rangeX, double rangeY, double rangeZ)
 	{
-		D3D11_BUFFER_DESC desc;
+		/*D3D11_BUFFER_DESC desc;
 		memset(&desc, 0, sizeof(desc));
 
 		desc.Usage = D3D11_USAGE_DEFAULT;
@@ -74,16 +75,21 @@ public:
 		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		m_Device->CreateBuffer(&desc, NULL, &intermediateVB);
 
-		debugLog::getInstance().addToLog("m_Device->CreateBuffer", "OctreeMemory");
+		debugLog::getInstance().addToLog("m_Device->CreateBuffer", "OctreeMemory");*/
 
 		double AABBsize = rangeX > rangeY ? rangeX : rangeY;
 		AABBsize = AABBsize > rangeZ ? AABBsize : rangeZ;
 
 		searchOctree->initialize(float(AABBsize), glm::vec3(rangeX, rangeY, rangeZ / 2.0f), &vertexInfo);
+		debugLog::getInstance().addToLog("after searchOctree->initialize", "testThread");
+		debugLog::getInstance().addToLog("vertexInfo.size(): " + std::to_string(vertexInfo.size()), "testThread");
+		
 		for (int i = 0; i < vertexInfo.size(); i++)
 		{
 			searchOctree->addObject(i);
+			//debugLog::getInstance().addToLog("after addObject i: " + std::to_string(i), "testThread");
 		}
+		debugLog::getInstance().addToLog(" after for (int i = 0; i < vertexInfo.size(); i++)", "testThread");
 	}
 
 	int getPointCount()
@@ -114,6 +120,6 @@ private:
 	std::atomic<bool> loadingDone;
 	std::atomic<bool> newJobReady;
 	void loadFunc();
-	std::string currentPath;
-	pointCloud* currentPointCloud;
+	std::string currentPath = "";
+	pointCloud* currentPointCloud = nullptr;
 };
