@@ -19,15 +19,33 @@ struct LAZFileInfo
 	~LAZFileInfo() {}
 };
 
+struct LODInformation
+{
+	ID3D11Buffer* VB;
+	std::vector<MeshVertex> vertexInfo;
+};
+
+struct LODSetting
+{
+	float maxDistance;
+	float targetPercentOFPoints;
+	int takeEach_Nth_Point;
+};
+
 class pointCloud
 {
 	octree* searchOctree = nullptr;
 public:
 	ID3D11Buffer* mainVB;
 	ID3D11Buffer* intermediateVB;
+
 	glm::mat4 worldMatrix;
 	std::vector<MeshVertex> vertexInfo;
 	std::vector<float> vertexIntensity;
+
+	std::vector<LODInformation> LODs;
+	static std::vector<LODSetting> LODSettings;
+
 	bool wasInitialized = false;
 	bool wasFullyLoaded = false;
 	LAZFileInfo* loadedFrom = nullptr;
@@ -99,7 +117,7 @@ public:
 
 	octree* getSearchOctree()
 	{
-		searchOctree->updateRawDataPointer(&vertexInfo);
+		//searchOctree->updateRawDataPointer(&vertexInfo);
 		return searchOctree;
 	}
 };
@@ -113,6 +131,7 @@ public:
 
 	bool tryLoadPointCloudAsync(std::string path, pointCloud* PointCloud);
 	int getFreeTextureThreadCount();
+	bool isLoadingDone();
 private:
 	SINGLETON_PRIVATE_PART(LoadManager)
 

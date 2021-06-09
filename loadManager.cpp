@@ -2,6 +2,7 @@
 #include "loadManager.h"
 
 LoadManager* LoadManager::_instance = nullptr;
+std::vector<LODSetting> pointCloud::LODSettings = std::vector<LODSetting>();
 
 void LoadManager::loadFunc()
 {
@@ -16,6 +17,27 @@ void LoadManager::loadFunc()
 				debugLog::getInstance().addToLog("filePath lenght was less then 1", "ERRORS");
 				return;
 			}
+
+			/*if (pointCloud::LODSettings.size() == 0)
+			{
+				debugLog::getInstance().addToLog("LODSettings.resize(4);", "TEST");
+				pointCloud::LODSettings.resize(4);
+				pointCloud::LODSettings[0].targetPercentOFPoints = 50.0f;
+				pointCloud::LODSettings[0].maxDistance = 500.0f;
+				pointCloud::LODSettings[1].targetPercentOFPoints = 33.0f;
+				pointCloud::LODSettings[1].maxDistance = 1000.0f;
+				pointCloud::LODSettings[2].targetPercentOFPoints = 25.0f;
+				pointCloud::LODSettings[2].maxDistance = 3500.0f;
+				pointCloud::LODSettings[3].targetPercentOFPoints = 12.5f;
+				pointCloud::LODSettings[3].maxDistance = 10000.0f;
+
+				for (size_t i = 0; i < 4; i++)
+				{
+					pointCloud::LODSettings[i].takeEach_Nth_Point = 100.0f / pointCloud::LODSettings[i].targetPercentOFPoints;
+				}
+
+				debugLog::getInstance().addToLog("LODSettings.resize(4); after", "TEST");
+			}*/
 
 			// create the reader
 			laszip_POINTER laszip_reader;
@@ -114,6 +136,21 @@ void LoadManager::loadFunc()
 
 			debugLog::getInstance().addToLog("laszip_get_point_pointer(laszip_reader, &point)", "testThread");
 
+			currentPointCloud->LODs.resize(pointCloud::LODSettings.size());
+			debugLog::getInstance().addToLog("LODSettings.size(): " + std::to_string(pointCloud::LODSettings.size()), "TEST");
+			//currentPointCloud->LODs[0].targetPercentOFPoints = 50.0f;
+			//currentPointCloud->LODs[0].maxDistance = 500.0f;
+			//currentPointCloud->LODs[1].targetPercentOFPoints = 33.0f;
+			//currentPointCloud->LODs[1].maxDistance = 1000.0f;
+			//currentPointCloud->LODs[2].targetPercentOFPoints = 25.0f;
+			//currentPointCloud->LODs[2].maxDistance = 3500.0f;
+			//currentPointCloud->LODs[3].targetPercentOFPoints = 12.5f;
+			//currentPointCloud->LODs[3].maxDistance = 10000.0f;
+			/*for (size_t i = 0; i < currentPointCloud->LODs.size(); i++)
+			{
+				LODSettings[i].takeEach_Nth_Point = 100.0f / LODSettings[i].targetPercentOFPoints;
+			}*/
+
 			// read the points
 			laszip_U64 p_count = 0;
 			std::vector<MeshVertex> points;
@@ -143,6 +180,21 @@ void LoadManager::loadFunc()
 				currentPointCloud->vertexInfo[p_count].color[0] = byte(point->rgb[0] / float(1 << 16) * 255);
 				currentPointCloud->vertexInfo[p_count].color[1] = byte(point->rgb[1] / float(1 << 16) * 255);
 				currentPointCloud->vertexInfo[p_count].color[2] = byte(point->rgb[2] / float(1 << 16) * 255);
+				
+				for (size_t i = 0; i < pointCloud::LODSettings.size(); i++)
+				{
+					if (p_count % pointCloud::LODSettings[i].takeEach_Nth_Point == 0)
+					{
+						currentPointCloud->LODs[i].vertexInfo.resize(currentPointCloud->LODs[i].vertexInfo.size() + 1);
+						currentPointCloud->LODs[i].vertexInfo.back().position[0] = currentPointCloud->vertexInfo[p_count].position[0];
+						currentPointCloud->LODs[i].vertexInfo.back().position[1] = currentPointCloud->vertexInfo[p_count].position[1];
+						currentPointCloud->LODs[i].vertexInfo.back().position[2] = currentPointCloud->vertexInfo[p_count].position[2];
+						currentPointCloud->LODs[i].vertexInfo.back().color[0] = currentPointCloud->vertexInfo[p_count].color[0];
+						currentPointCloud->LODs[i].vertexInfo.back().color[1] = currentPointCloud->vertexInfo[p_count].color[1];
+						currentPointCloud->LODs[i].vertexInfo.back().color[2] = currentPointCloud->vertexInfo[p_count].color[2];
+					}
+				}
+
 				currentPointCloud->vertexIntensity[p_count] = point->intensity;
 				if (maxIntensity < point->intensity)
 					maxIntensity = point->intensity;
@@ -177,6 +229,16 @@ void LoadManager::loadFunc()
 					currentPointCloud->vertexInfo[i].color[0] = byte(currentPointCloud->vertexIntensity[i] / maxIntensity * 255);
 					currentPointCloud->vertexInfo[i].color[1] = byte(currentPointCloud->vertexIntensity[i] / maxIntensity * 255);
 					currentPointCloud->vertexInfo[i].color[2] = byte(currentPointCloud->vertexIntensity[i] / maxIntensity * 255);
+
+					for (size_t j = 0; j < currentPointCloud->LODs.size(); j++)
+					{
+						if (i % pointCloud::LODSettings[j].takeEach_Nth_Point == 0)
+						{
+							currentPointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].color[0] = currentPointCloud->vertexInfo[i].color[0];
+							currentPointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].color[1] = currentPointCloud->vertexInfo[i].color[1];
+							currentPointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].color[2] = currentPointCloud->vertexInfo[i].color[2];
+						}
+					}
 				}
 			}
 
@@ -251,6 +313,16 @@ void LoadManager::loadFunc()
 
 				if (newMaxZ < currentPointCloud->vertexInfo[i].position[2])
 					newMaxZ = currentPointCloud->vertexInfo[i].position[2];
+
+				for (size_t j = 0; j < currentPointCloud->LODs.size(); j++)
+				{
+					if (i % pointCloud::LODSettings[j].takeEach_Nth_Point == 0)
+					{
+						currentPointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].position[0] = currentPointCloud->vertexInfo[i].position[0];
+						currentPointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].position[1] = currentPointCloud->vertexInfo[i].position[1];
+						currentPointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].position[2] = currentPointCloud->vertexInfo[i].position[2];
+					}
+				}
 			}
 
 			debugLog::getInstance().addToLog("newMinX: " + std::to_string(newMinX), "File_Load_Log");
@@ -338,4 +410,9 @@ bool LoadManager::tryLoadPointCloudAsync(std::string path, pointCloud* PointClou
 
 	newJobReady = true;
 	return true;
+}
+
+bool LoadManager::isLoadingDone()
+{
+	return loadingDone.load();
 }

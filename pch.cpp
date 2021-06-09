@@ -15,6 +15,9 @@ static float projectionMatrix[16];
 static float** frustum = nullptr;
 static void updateFrustumPlanes();
 static bool frustumCulling = false;
+static bool LODSystemActive = false;
+
+static float LODTransitionDistance = 3500.0f;
 
 const BYTE kVertexShaderCode[] =
 {
@@ -332,6 +335,18 @@ void copyLAZFileHeader(laszip_header* dest, laszip_header* source)
 }
 
 std::vector<pointCloud*> pointClouds;
+
+extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API IsLastAsyncLoadFinished()
+{
+	//if (pointClouds.size() == 0)
+	//	return false;
+
+	//// For now we will check if last element of pointClouds was loaded
+	//if (pointClouds.back()->wasInitialized)
+	//	return true;
+
+	return LoadManager::getInstance().isLoadingDone();
+}
 
 extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OpenLAZFileFromUnity(char* filePath)
 {
@@ -655,6 +670,21 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 			LOG.addToLog("getting LASzip DLL version number failed", "DLL_ERRORS");
 		}
 		LOG.addToLog("LASzip DLL v" + std::to_string((int)version_major) + "." + std::to_string((int)version_minor) + "r" + std::to_string((int)version_revision) + " (build " + std::to_string((int)version_build) + ")", "DLL_START");
+	}
+
+	pointCloud::LODSettings.resize(4);
+	pointCloud::LODSettings[0].targetPercentOFPoints = 50.0f;
+	pointCloud::LODSettings[0].maxDistance = 1000.0f;
+	pointCloud::LODSettings[1].targetPercentOFPoints = 33.0f;
+	pointCloud::LODSettings[1].maxDistance = 3500.0f;
+	pointCloud::LODSettings[2].targetPercentOFPoints = 25.0f;
+	pointCloud::LODSettings[2].maxDistance = 6000.0f;
+	pointCloud::LODSettings[3].targetPercentOFPoints = 12.5f;
+	pointCloud::LODSettings[3].maxDistance = 10000.0f;
+
+	for (size_t i = 0; i < 4; i++)
+	{
+		pointCloud::LODSettings[i].takeEach_Nth_Point = 100.0f / pointCloud::LODSettings[i].targetPercentOFPoints;
 	}
 }
 
@@ -1019,6 +1049,14 @@ static void DrawPointCloud(pointCloud* pointCloudToRender)
 			desc.ByteWidth = UINT(pointCloudToRender->vertexInfo.size() * 16);
 			desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 			m_Device->CreateBuffer(&desc, NULL, &pointCloudToRender->intermediateVB);
+
+			desc.Usage = D3D11_USAGE_DEFAULT;
+			desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+			for (size_t i = 0; i < pointCloudToRender->LODs.size(); i++)
+			{
+				desc.ByteWidth = UINT(pointCloudToRender->LODs[i].vertexInfo.size() * 16);
+				m_Device->CreateBuffer(&desc, NULL, &pointCloudToRender->LODs[i].VB);
+			}
 		}
 
 		D3D11_BOX box{};
@@ -1058,6 +1096,11 @@ static void DrawPointCloud(pointCloud* pointCloudToRender)
 		{
 			ctx->UpdateSubresource(pointCloudToRender->mainVB, 0, nullptr, pointCloudToRender->vertexInfo.data(), pointCloudToRender->getPointCount() * kVertexSize, pointCloudToRender->getPointCount() * kVertexSize);
 			LOG.addToLog("copy data to vertex buffer, vertexInfo size: " + std::to_string(pointCloudToRender->vertexInfo.size()), "OctreeEvents");
+
+			for (size_t i = 0; i < pointCloudToRender->LODs.size(); i++)
+			{
+				ctx->UpdateSubresource(pointCloudToRender->LODs[i].VB, 0, nullptr, pointCloudToRender->LODs[i].vertexInfo.data(), pointCloudToRender->LODs[i].vertexInfo.size() * kVertexSize, pointCloudToRender->LODs[i].vertexInfo.size() * kVertexSize);
+			}
 		}
 		else
 		{
@@ -1105,9 +1148,27 @@ static void DrawPointCloud(pointCloud* pointCloudToRender)
 	ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
 	UINT stride = kVertexSize;
 	UINT offset = 0;
-	ctx->IASetVertexBuffers(0, 1, &pointCloudToRender->mainVB, &stride, &offset);
-	ctx->Draw(pointCloudToRender->getPointCount(), 0);
 
+	float distanceToCamera = glm::distance(glm::vec3(glmWorldMatrix[3][0], glmWorldMatrix[3][1], glmWorldMatrix[3][2]), glm::vec3(glmViewMatrix[3][0], glmViewMatrix[3][1], glmViewMatrix[3][2]));
+	if (!LODSystemActive)
+	{
+		ctx->IASetVertexBuffers(0, 1, &pointCloudToRender->mainVB, &stride, &offset);
+		ctx->Draw(pointCloudToRender->getPointCount(), 0);
+	}
+	else
+	{
+		for (size_t i = 0; i < pointCloud::LODSettings.size(); i++)
+		{
+			if (distanceToCamera <= pointCloud::LODSettings[i].maxDistance)
+			{
+				ctx->IASetVertexBuffers(0, 1, &pointCloudToRender->LODs[i].VB, &stride, &offset);
+				ctx->Draw(UINT(pointCloudToRender->LODs[i].vertexInfo.size()), 0);
+				break;
+			}
+		}
+	}
+
+	//LOG.addToLog("distanceToCamera: " + std::to_string(distanceToCamera), "camera");
 	ctx->Release();
 }
 
@@ -1181,12 +1242,27 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API updateCamera(void* ca
 	for (size_t i = 0; i < 16; i++)
 	{
 		worldToViewMatrix[i] = ((float*)(cameraWorldMatrix))[i];
+		//LOG.addToLog("worldToViewMatrix[" + std::to_string(i) + "]: " + std::to_string(worldToViewMatrix[i]), "camera");
 	}
 
 	for (size_t i = 0; i < 16; i++)
 	{
 		projectionMatrix[i] = ((float*)(cameraProjectionMatrix))[i];
 	}
+
+	/*glm::mat4 glmViewMatrix = glm::make_mat4(worldToViewMatrix);
+	glmViewMatrix = glm::transpose(glmViewMatrix);
+	for (size_t i = 0; i < 4; i++)
+	{
+		for (size_t j = 0; j < 4; j++)
+		{
+			LOG.addToLog("glmViewMatrix[" + std::to_string(i) + "][" + std::to_string(j) + "]: " + std::to_string(glmViewMatrix[i][j]), "camera");
+		}
+	}*/
+
+	//LOG.addToLog("glmWorldMatrix[0][3]: " + std::to_string(glmViewMatrix[0][3]), "camera");
+	//LOG.addToLog("glmWorldMatrix[1][3]: " + std::to_string(glmViewMatrix[1][3]), "camera");
+	//LOG.addToLog("glmWorldMatrix[2][3]: " + std::to_string(glmViewMatrix[2][3]), "camera");
 
 	updateFrustumPlanes();
 }
@@ -1312,6 +1388,45 @@ void updateFrustumPlanes()
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API setFrustumCulling(bool active)
 {
-	//frustumCulling = *(int*)active ? true : false;
 	frustumCulling = active;
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API setLODSystemActive(bool active)
+{
+	LODSystemActive = active;
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API setLODTransitionDistance(void* value)
+{
+	LODTransitionDistance = ((float*)(value))[0];
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API setLODInfo(float* values, int LODIndex, int pointCloudIndex)
+{
+	if (pointCloudIndex >= pointClouds.size() || pointCloudIndex < 0)
+		return;
+
+	if (LODIndex >= pointCloud::LODSettings.size() || LODIndex < 0)
+		return;
+
+	LOG.addToLog("setLODInfo: ", "TEST");
+
+	pointCloud::LODSettings[LODIndex].maxDistance = ((float*)(values))[0];
+	pointCloud::LODSettings[LODIndex].targetPercentOFPoints = ((float*)(values))[1];
+	pointCloud::LODSettings[LODIndex].takeEach_Nth_Point = 100.0f / pointCloud::LODSettings[LODIndex].targetPercentOFPoints;
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestLODInfoFromUnity(float* maxDistance, float* targetPercentOFPoints, int LODIndex, int pointCloudIndex)
+{
+	if (pointCloudIndex >= pointClouds.size() || pointCloudIndex < 0)
+		return;
+
+	if (LODIndex >= pointCloud::LODSettings.size() || LODIndex < 0)
+		return;
+
+	LOG.addToLog("pointCloud::LODSettings[LODIndex].maxDistance: " + std::to_string(pointCloud::LODSettings[LODIndex].maxDistance), "TEST");
+	LOG.addToLog("pointCloud::LODSettings[LODIndex].targetPercentOFPoints: " + std::to_string(pointCloud::LODSettings[LODIndex].targetPercentOFPoints), "TEST");
+
+	maxDistance[0] = pointCloud::LODSettings[LODIndex].maxDistance;
+	targetPercentOFPoints[0] = pointCloud::LODSettings[LODIndex].targetPercentOFPoints;
 }

@@ -5,10 +5,9 @@
 
 #include <vector>
 #define GLM_FORCE_XYZW_ONLY
-#include "glm/ext/vector_double3.hpp"
 #include "glm/gtc/type_ptr.hpp"
 #include "glm/mat4x4.hpp"
-//#include "glm/vec3.hpp"
+#include "glm/vec3.hpp"
 
 #include <d3d11.h>
 
@@ -18,12 +17,10 @@ struct MeshVertex
     byte color[4];
 };
 
-static std::vector<MeshVertex>* rawDataPointer;
 static int deletedCount = 0;
 static const int capacity = 10000;
 static float sqrtTwo = sqrt(2.0f);
 static int count = 0;
-//static std::vector<int> indicesToDelete;
 static int debugMaxNodeDepth = 0;
 static int debugNodeCount = 0;
 
@@ -40,7 +37,7 @@ public:
     AABB(glm::vec3 center, float Size)
     {
         float halfSize = Size / 2.0f;
-    /*AABB(glm::vec3 center, float size)
+   /* AABB(glm::vec3 center, float size)
     {
         float halfSize = size / 2.0f;*/
         min[0] = center[0] - halfSize;
@@ -90,6 +87,7 @@ public:
     std::vector<int> objects;
     int depth = 0;
     AABB nodeAABB;
+    std::vector<MeshVertex>* rawData;
 
     octreeNode()
     {
@@ -99,6 +97,7 @@ public:
         diagonal = 0.0f;
         childs = nullptr;
         parent = nullptr;
+        rawData = nullptr;
     }
 
     octreeNode(float Size, glm::vec3 Center, int Depth)
@@ -138,28 +137,36 @@ public:
         // upper top left
         childs[0] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, size / 4.0f, -size / 4.0f), depth + 1);
         childs[0]->parent = this;
+        childs[0]->rawData = rawData;
         // upper top right
         childs[1] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, size / 4.0f, -size / 4.0f), depth + 1);
         childs[1]->parent = this;
+        childs[1]->rawData = rawData;
         // upper bottom left
         childs[2] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, size / 4.0f, size / 4.0f), depth + 1);
         childs[2]->parent = this;
+        childs[2]->rawData = rawData;
         // upper bottom right
         childs[3] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, size / 4.0f, size / 4.0f), depth + 1);
         childs[3]->parent = this;
+        childs[3]->rawData = rawData;
 
         // down top left
         childs[4] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, -size / 4.0f, -size / 4.0f), depth + 1);
         childs[4]->parent = this;
+        childs[4]->rawData = rawData;
         // down top right
         childs[5] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, -size / 4.0f, -size / 4.0f), depth + 1);
         childs[5]->parent = this;
+        childs[5]->rawData = rawData;
         // down bottom left
         childs[6] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, -size / 4.0f, size / 4.0f), depth + 1);
         childs[6]->parent = this;
+        childs[6]->rawData = rawData;
         // down bottom right
         childs[7] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, -size / 4.0f, size / 4.0f), depth + 1);
         childs[7]->parent = this;
+        childs[7]->rawData = rawData;
     }
 
     bool addObject(glm::vec3& point, int index)
@@ -214,7 +221,7 @@ public:
 
         for (int i = 0; i < objects.size(); i++)
         {
-            currentDistance = distance(rawDataPointer->operator[](objects[i]).position, Center);
+            currentDistance = distance(rawData/*rawDataPointer*/->operator[](objects[i]).position, Center);
             if (currentDistance < Radius)
             {
                 deletedCount++;
@@ -292,7 +299,8 @@ public:
 
         root = new octreeNode(worldSize, worldCenter, 0);
         root->parent = root;
-        rawDataPointer = RawData;
+        root->rawData = RawData;
+        //rawDataPointer = RawData;
 
 #ifdef MAIN_EVENTS_LOGGING
         debugLog::getInstance().addToLog("creating octree...", "OctreeEvents");
@@ -307,7 +315,7 @@ public:
 #ifdef FULL_LOGGING
         debugLog::getInstance().addToLog("point to add: ", rawData[index], "OctreeEvents");
 #endif
-        return root->addObject(rawDataPointer->operator[](index).position, index);
+        return root->addObject(root->rawData/*rawDataPointer*/->operator[](index).position, index);
     }
 
     void deleteObjects(glm::vec3& Center, float Radius)
@@ -338,28 +346,6 @@ public:
         return debugNodeCount;
     }
 
-    /*void fillToDeleteArray()
-    {
-        pointsToDelete.resize(indicesToDelete.size());
-        for (size_t i = 0; i < indicesToDelete.size(); i++)
-        {
-            pointsToDelete[i] = indicesToDelete[i];
-        }
-
-        indicesToDelete.clear();
-    }*/
-
-    /*void getToDelete(std::vector<int>& arrayToFill)
-    {
-        arrayToFill.resize(pointsToDelete.size());
-        for (size_t i = 0; i < pointsToDelete.size(); i++)
-        {
-            arrayToFill[i] = pointsToDelete[i];
-        }
-
-        pointsToDelete.clear();
-    }*/
-
     int getDebugMaxNodeDepth()
     {
         return debugMaxNodeDepth;
@@ -388,10 +374,5 @@ public:
 
         return true;
 #endif
-    }
-
-    void updateRawDataPointer(std::vector<MeshVertex>* RawData)
-    {
-        rawDataPointer = RawData;
     }
 };
