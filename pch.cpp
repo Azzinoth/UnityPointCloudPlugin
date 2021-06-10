@@ -18,6 +18,7 @@ static bool frustumCulling = false;
 static bool LODSystemActive = false;
 
 static float LODTransitionDistance = 3500.0f;
+#define DELETED_POINTS_COORDINATE -10000.0f
 
 const BYTE kVertexShaderCode[] =
 {
@@ -684,7 +685,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 
 	for (size_t i = 0; i < 4; i++)
 	{
-		pointCloud::LODSettings[i].takeEach_Nth_Point = 100.0f / pointCloud::LODSettings[i].targetPercentOFPoints;
+		pointCloud::LODSettings[i].takeEach_Nth_Point = (int)100.0f / pointCloud::LODSettings[i].targetPercentOFPoints;
 	}
 }
 
@@ -755,7 +756,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SaveToLAZFileFromUnit
 	int pointsToWrite = 0;
 	for (size_t j = 0; j < pointClouds[pointCloudIndex]->getPointCount(); j++)
 	{
-		if (pointClouds[pointCloudIndex]->vertexInfo[j].position[0] != -10000.0f)
+		if (pointClouds[pointCloudIndex]->vertexInfo[j].position[0] != DELETED_POINTS_COORDINATE &&
+			pointClouds[pointCloudIndex]->vertexInfo[j].position[1] != DELETED_POINTS_COORDINATE &&
+			pointClouds[pointCloudIndex]->vertexInfo[j].position[2] != DELETED_POINTS_COORDINATE)
 			pointsToWrite++;
 	}
 
@@ -781,7 +784,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SaveToLAZFileFromUnit
 
 	for (size_t j = 0; j < pointClouds[pointCloudIndex]->getPointCount(); j++)
 	{
-		if (pointClouds[pointCloudIndex]->vertexInfo[j].position[0] != -10000.0f)
+		if (pointClouds[pointCloudIndex]->vertexInfo[j].position[0] != DELETED_POINTS_COORDINATE &&
+			pointClouds[pointCloudIndex]->vertexInfo[j].position[1] != DELETED_POINTS_COORDINATE &&
+			pointClouds[pointCloudIndex]->vertexInfo[j].position[2] != DELETED_POINTS_COORDINATE)
 		{
 			if (laszip_set_point(laszip_writer, &pointClouds[pointCloudIndex]->loadedFrom->LAZpoints[j]))
 			{
@@ -1083,7 +1088,9 @@ static void DrawPointCloud(pointCloud* pointCloudToRender)
 				if (pointCloudToRender->getSearchOctree()->pointsToDelete[i] < min)
 					min = pointCloudToRender->getSearchOctree()->pointsToDelete[i];
 
-				pointCloudToRender->vertexInfo[pointCloudToRender->getSearchOctree()->pointsToDelete[i]].position[0] = -10000.0f;
+				pointCloudToRender->vertexInfo[pointCloudToRender->getSearchOctree()->pointsToDelete[i]].position[0] = DELETED_POINTS_COORDINATE;
+				pointCloudToRender->vertexInfo[pointCloudToRender->getSearchOctree()->pointsToDelete[i]].position[1] = DELETED_POINTS_COORDINATE;
+				pointCloudToRender->vertexInfo[pointCloudToRender->getSearchOctree()->pointsToDelete[i]].position[2] = DELETED_POINTS_COORDINATE;
 			}
 
 			pointCloudToRender->getSearchOctree()->pointsToDelete.clear();
@@ -1413,7 +1420,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API setLODInfo(float* val
 
 	pointCloud::LODSettings[LODIndex].maxDistance = ((float*)(values))[0];
 	pointCloud::LODSettings[LODIndex].targetPercentOFPoints = ((float*)(values))[1];
-	pointCloud::LODSettings[LODIndex].takeEach_Nth_Point = 100.0f / pointCloud::LODSettings[LODIndex].targetPercentOFPoints;
+	pointCloud::LODSettings[LODIndex].takeEach_Nth_Point = (int)100.0f / pointCloud::LODSettings[LODIndex].targetPercentOFPoints;
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestLODInfoFromUnity(float* maxDistance, float* targetPercentOFPoints, int LODIndex, int pointCloudIndex)

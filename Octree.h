@@ -180,9 +180,16 @@ public:
         if (point.y < nodeAABB.min[1] || point.y > nodeAABB.max[1]) instersect = false;
         if (point.z < nodeAABB.min[2] || point.z > nodeAABB.max[2]) instersect = false;
 
-#ifdef FULL_LOGGING
-        debugLog::getInstance().addToLog("point was: " + instersect ? "accepted" : "rejected", "OctreeEvents");
-#endif
+//#ifdef FULL_LOGGING
+        //debugLog::getInstance().addToLog("point was: " + instersect ? "accepted" : "rejected", "OctreeEvents");
+        //if (!instersect)
+        //{
+        //    debugLog::getInstance().addToLog("point was: rejected", "OctreeEvents");
+        //    debugLog::getInstance().addToLog("point:", point, "OctreeEvents");
+        //    debugLog::getInstance().addToLog("nodeAABB.min:", nodeAABB.min, "OctreeEvents");
+        //    debugLog::getInstance().addToLog("nodeAABB.max:", nodeAABB.max, "OctreeEvents");
+        //}
+//#endif
 
         if (objects.size() < capacity && instersect)
         {
@@ -208,20 +215,33 @@ public:
 
     void deleteObjects(glm::vec3& Center, float Radius, std::vector<int>& pointsToDelete)
     {
+        /*debugLog::getInstance().addToLog("========= BEGIN OF DELETE EVENT =========", "deleteEvents");
+        debugLog::getInstance().addToLog("Center at ", Center, "deleteEvents");
+        debugLog::getInstance().addToLog("Radius: " + std::to_string(Radius), "deleteEvents");
+        debugLog::getInstance().addToLog("Depth: " + std::to_string(depth), "deleteEvents");*/
+
         double currentDistance = distance(center, Center);
+        /*debugLog::getInstance().addToLog("currentDistance  distance(center, Center): " + std::to_string(currentDistance), "deleteEvents");
+        debugLog::getInstance().addToLog("diagonal: " + std::to_string(diagonal), "deleteEvents");*/
+
         if (currentDistance > Radius + diagonal)
         {
+            /*debugLog::getInstance().addToLog("Rejected", "deleteEvents");
+            debugLog::getInstance().addToLog("========= END OF DELETE EVENT =========", "deleteEvents");*/
             return;
         }
         else if (Radius > currentDistance + diagonal)
         {
+            /*debugLog::getInstance().addToLog("Approved total deletion", "deleteEvents");
+            debugLog::getInstance().addToLog("========= END OF DELETE EVENT =========", "deleteEvents");*/
             deleteAllObjects(this, pointsToDelete);
             return;
         }
 
         for (int i = 0; i < objects.size(); i++)
         {
-            currentDistance = distance(rawData/*rawDataPointer*/->operator[](objects[i]).position, Center);
+            currentDistance = distance(rawData->operator[](objects[i]).position, Center);
+            //debugLog::getInstance().addToLog("currentDistance  distance(rawData->operator[](objects[i]).position, Center): " + std::to_string(currentDistance), "deleteEvents");
             if (currentDistance < Radius)
             {
                 deletedCount++;

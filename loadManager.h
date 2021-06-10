@@ -80,31 +80,22 @@ public:
 
 	void initializeOctree(double rangeX, double rangeY, double rangeZ)
 	{
-		/*D3D11_BUFFER_DESC desc;
-		memset(&desc, 0, sizeof(desc));
-
-		desc.Usage = D3D11_USAGE_DEFAULT;
-		desc.ByteWidth = UINT(vertexInfo.size() * 16);
-		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		m_Device->CreateBuffer(&desc, NULL, &mainVB);
-
-		desc.Usage = D3D11_USAGE_DEFAULT;
-		desc.ByteWidth = UINT(vertexInfo.size() * 16);
-		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		m_Device->CreateBuffer(&desc, NULL, &intermediateVB);
-
-		debugLog::getInstance().addToLog("m_Device->CreateBuffer", "OctreeMemory");*/
-
 		double AABBsize = rangeX > rangeY ? rangeX : rangeY;
 		AABBsize = AABBsize > rangeZ ? AABBsize : rangeZ;
 
-		searchOctree->initialize(float(AABBsize), glm::vec3(rangeX, rangeY, rangeZ / 2.0f), &vertexInfo);
+		searchOctree->initialize(float(AABBsize * 2.0f), glm::vec3(rangeX, rangeY, rangeZ / 2.0f), &vertexInfo);
 		debugLog::getInstance().addToLog("after searchOctree->initialize", "testThread");
 		debugLog::getInstance().addToLog("vertexInfo.size(): " + std::to_string(vertexInfo.size()), "testThread");
 		
 		for (int i = 0; i < vertexInfo.size(); i++)
 		{
-			searchOctree->addObject(i);
+			bool accepted = searchOctree->addObject(i);
+			/*if (!accepted)
+			{
+				debugLog::getInstance().addToLog("point was: rejected", "OctreeEvents");
+				debugLog::getInstance().addToLog("point:", vertexInfo[i].position, "OctreeEvents");
+			}*/
+
 			//debugLog::getInstance().addToLog("after addObject i: " + std::to_string(i), "testThread");
 		}
 		debugLog::getInstance().addToLog(" after for (int i = 0; i < vertexInfo.size(); i++)", "testThread");
