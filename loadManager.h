@@ -42,6 +42,7 @@ public:
 	glm::mat4 worldMatrix;
 	std::vector<MeshVertex> vertexInfo;
 	std::vector<float> vertexIntensity;
+	std::vector<int> lastHighlightedPoints;
 
 	std::vector<LODInformation> LODs;
 	static std::vector<LODSetting> LODSettings;
@@ -83,7 +84,7 @@ public:
 		double AABBsize = rangeX > rangeY ? rangeX : rangeY;
 		AABBsize = AABBsize > rangeZ ? AABBsize : rangeZ;
 
-		searchOctree->initialize(float(AABBsize * 2.0f), glm::vec3(rangeX, rangeY, rangeZ / 2.0f), &vertexInfo);
+		searchOctree->initialize(float(AABBsize * 4.0f), glm::vec3(rangeX, rangeY, rangeZ / 2.0f), &vertexInfo);
 		debugLog::getInstance().addToLog("after searchOctree->initialize", "testThread");
 		debugLog::getInstance().addToLog("vertexInfo.size(): " + std::to_string(vertexInfo.size()), "testThread");
 		
