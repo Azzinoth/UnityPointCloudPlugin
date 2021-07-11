@@ -22,6 +22,13 @@ void LoadManager::loadFunc()
 			double rangeY = 0.0f;
 			double rangeZ = 0.0f;
 
+			double newMinX = DBL_MAX;
+			double newMaxX = -DBL_MAX;
+			double newMinY = DBL_MAX;
+			double newMaxY = -DBL_MAX;
+			double newMinZ = DBL_MAX;
+			double newMaxZ = -DBL_MAX;
+
 			// if file is in our own format
 			if (currentPath[currentPath.size() - 4] == '.' &&
 				currentPath[currentPath.size() - 3] == 'c' &&
@@ -66,6 +73,13 @@ void LoadManager::loadFunc()
 				currentPointCloud->max[1] = *(float*)buffer;
 				file.read(buffer, sizeof(float));
 				currentPointCloud->max[2] = *(float*)buffer;
+
+				newMinX = currentPointCloud->min.x;
+				newMaxX = currentPointCloud->max.x;
+				newMinY = currentPointCloud->min.y;
+				newMaxY = currentPointCloud->max.y;
+				newMinZ = currentPointCloud->min.z;
+				newMaxZ = currentPointCloud->max.z;
 
 				rangeX = currentPointCloud->max.x - currentPointCloud->min.x;
 				rangeY = currentPointCloud->max.y - currentPointCloud->min.y;
@@ -341,13 +355,6 @@ void LoadManager::loadFunc()
 				debugLog::getInstance().addToLog("adjustment.y: " + std::to_string(currentPointCloud->adjustment.y), "File_Load_Log");
 				debugLog::getInstance().addToLog("adjustment.z: " + std::to_string(currentPointCloud->adjustment.z), "File_Load_Log");
 
-				double newMinX = DBL_MAX;
-				double newMaxX = -DBL_MAX;
-				double newMinY = DBL_MAX;
-				double newMaxY = -DBL_MAX;
-				double newMinZ = DBL_MAX;
-				double newMaxZ = -DBL_MAX;
-
 				for (int i = 0; i < npoints; i++)
 				{
 					if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
@@ -392,6 +399,14 @@ void LoadManager::loadFunc()
 					}
 				}
 
+				currentPointCloud->min.x = newMinX;
+				currentPointCloud->min.y = newMinY;
+				currentPointCloud->min.z = newMinZ;
+
+				currentPointCloud->max.x = newMaxX;
+				currentPointCloud->max.y = newMaxY;
+				currentPointCloud->max.z = newMaxZ;
+
 				debugLog::getInstance().addToLog("newMinX: " + std::to_string(newMinX), "File_Load_Log");
 				debugLog::getInstance().addToLog("newMaxX: " + std::to_string(newMaxX), "File_Load_Log");
 				debugLog::getInstance().addToLog("newMinY: " + std::to_string(newMinY), "File_Load_Log");
@@ -424,9 +439,18 @@ void LoadManager::loadFunc()
 				}
 			}
 
+			// saving original colors
+			currentPointCloud->pointsOriginalColor.resize(currentPointCloud->getPointCount());
+			for (size_t i = 0; i < currentPointCloud->pointsOriginalColor.size(); i++)
+			{
+				currentPointCloud->pointsOriginalColor[i].r = currentPointCloud->vertexInfo[i].color[0];
+				currentPointCloud->pointsOriginalColor[i].g = currentPointCloud->vertexInfo[i].color[1];
+				currentPointCloud->pointsOriginalColor[i].b = currentPointCloud->vertexInfo[i].color[2];
+			}
+
 			debugLog::getInstance().addToLog("before initializeOctree", "testThread");
 			debugLog::getInstance().addToLog("rangeXYZ: ", glm::vec3(rangeX, rangeY, rangeZ), "OctreeEvents");
-			currentPointCloud->initializeOctree(rangeX, rangeY, rangeZ);
+			currentPointCloud->initializeOctree(rangeX, rangeY, rangeZ, glm::vec3(newMinX + rangeX / 2.0f, newMinY + rangeY / 2.0f, newMinZ + rangeZ / 2.0f));
 			debugLog::getInstance().addToLog("after initializeOctree", "testThread");
 			//currentPointCloud->loadedFrom = fileInfo;
 			//currentPointCloud->loadedFrom->resultingPointCloud = pointClouds.back();

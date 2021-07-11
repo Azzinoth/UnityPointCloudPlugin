@@ -600,6 +600,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SaveToOwnFormatFileFr
 	file.write((char*)&pointClouds[pointCloudIndex]->max[1], sizeof(float));
 	file.write((char*)&pointClouds[pointCloudIndex]->max[2], sizeof(float));
 
+	// Write root node size.
+	//file.write((char*)&pointClouds[pointCloudIndex]->getSearchOctree()->root->size, sizeof(float));
+
 	for (size_t j = 0; j < pointClouds[pointCloudIndex]->getPointCount(); j++)
 	{
 		// Write point only if it is not "deleted".
@@ -799,6 +802,12 @@ static void CreateResources()
 	bdesc.RenderTarget[0].BlendEnable = FALSE;
 	bdesc.RenderTarget[0].RenderTargetWriteMask = 0xF;
 	m_Device->CreateBlendState(&bdesc, &m_BlendState);
+
+	//ID3DBlob* shaderBlob = nullptr;
+	//ID3DBlob* errorBlob = nullptr;
+	//HRESULT hr = D3DCompileFromFile(srcFile, defines, D3D_COMPILE_STANDARD_FILE_INCLUDE,
+	//	entryPoint, profile,
+	//	flags, 0, &shaderBlob, &errorBlob);
 }
 
 const int kVertexSize = 12 + 4;
@@ -816,8 +825,40 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 		}
 	}
 
-	if (pointCloud->getSearchOctree()->pointsToDelete.size() != 0 || HighlightDeletedPoints)
+	int minIndex = INT_MAX;
+	int maxIndex = INT_MIN;
+
+	// In case user switched off highlighting of points we need to clean up color data.
+	if (!highlightDeletedPoints && pointCloud->lastHighlightedPoints.size() != 0)
 	{
+		//LOG.addToLog("pointCloud->lastHighlightedPoints.size(): " + std::to_string(pointCloud->lastHighlightedPoints.size()), "highlightCleanUp");
+
+		minIndex = 0;
+		maxIndex = pointCloud->vertexInfo.size();
+
+		for (size_t i = 0; i < pointCloud->vertexInfo.size(); i++)
+		{
+			pointCloud->vertexInfo[i].color[0] = pointCloud->pointsOriginalColor[i].r;
+			pointCloud->vertexInfo[i].color[1] = pointCloud->pointsOriginalColor[i].g;
+			pointCloud->vertexInfo[i].color[2] = pointCloud->pointsOriginalColor[i].b;
+		}
+
+		//LOG.addToLog("pointCloud->pointsOriginalColor[0].r: " + std::to_string(pointCloud->pointsOriginalColor[0].r), "highlightCleanUp");
+		//LOG.addToLog("pointCloud->pointsOriginalColor[0].g: " + std::to_string(pointCloud->pointsOriginalColor[0].g), "highlightCleanUp");
+		//LOG.addToLog("pointCloud->pointsOriginalColor[0].b: " + std::to_string(pointCloud->pointsOriginalColor[0].b), "highlightCleanUp");
+
+		//LOG.addToLog("maxIndex: " + std::to_string(maxIndex), "highlightCleanUp");
+		//LOG.addToLog("minIndex: " + std::to_string(minIndex), "highlightCleanUp");
+
+		pointCloud->lastHighlightedPoints.clear();
+	}
+
+	if (pointCloud->getSearchOctree()->pointsToDelete.size() != 0 || HighlightDeletedPoints || (minIndex != INT_MAX && maxIndex != INT_MIN))
+	{
+		pointCloud->highlightStep += 10;
+		if (pointCloud->highlightStep > 100)
+			pointCloud->highlightStep = 0;
+
 		D3D11_BOX box{};
 		box.left = 0;
 		box.right = 0 + pointCloud->getPointCount() * kVertexSize;
@@ -826,19 +867,16 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 		box.front = 0;
 		box.back = 1;
 
-		int min = INT_MAX;
-		int max = INT_MIN;
-
 		if (pointCloud->getSearchOctree()->pointsToDelete.size() != 0)
 			LOG.addToLog("DrawPointCloud with pointsToDelete first element: " + std::to_string(pointCloud->getSearchOctree()->pointsToDelete[0]), "deleteEvents");
 
 		for (size_t i = 0; i < pointCloud->getSearchOctree()->pointsToDelete.size(); i++)
 		{
-			if (pointCloud->getSearchOctree()->pointsToDelete[i] > max)
-				max = pointCloud->getSearchOctree()->pointsToDelete[i];
+			if (pointCloud->getSearchOctree()->pointsToDelete[i] > maxIndex)
+				maxIndex = pointCloud->getSearchOctree()->pointsToDelete[i];
 
-			if (pointCloud->getSearchOctree()->pointsToDelete[i] < min)
-				min = pointCloud->getSearchOctree()->pointsToDelete[i];
+			if (pointCloud->getSearchOctree()->pointsToDelete[i] < minIndex)
+				minIndex = pointCloud->getSearchOctree()->pointsToDelete[i];
 
 			pointCloud->vertexInfo[pointCloud->getSearchOctree()->pointsToDelete[i]].position[0] = DELETED_POINTS_COORDINATE;
 			pointCloud->vertexInfo[pointCloud->getSearchOctree()->pointsToDelete[i]].position[1] = DELETED_POINTS_COORDINATE;
@@ -848,70 +886,87 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 
 		for (size_t i = 0; i < pointCloud->lastHighlightedPoints.size(); i++)
 		{
-			if (pointCloud->lastHighlightedPoints[i] > max)
-				max = pointCloud->lastHighlightedPoints[i];
+			if (pointCloud->lastHighlightedPoints[i] > maxIndex)
+				maxIndex = pointCloud->lastHighlightedPoints[i];
 
-			if (pointCloud->lastHighlightedPoints[i] < min)
-				min = pointCloud->lastHighlightedPoints[i];
+			if (pointCloud->lastHighlightedPoints[i] < minIndex)
+				minIndex = pointCloud->lastHighlightedPoints[i];
 
-			byte rColor = pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[0];
-			byte gColor = pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[1];
-			byte bColor = pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[2];
-
-			rColor = 255 - rColor;
-			gColor = 255 - gColor;
-			bColor = 255 - bColor;
-
-			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[0] = rColor;
-			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[1] = gColor;
-			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[2] = bColor;
+			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[0] = pointCloud->pointsOriginalColor[pointCloud->lastHighlightedPoints[i]].r;
+			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[1] = pointCloud->pointsOriginalColor[pointCloud->lastHighlightedPoints[i]].g;
+			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[2] = pointCloud->pointsOriginalColor[pointCloud->lastHighlightedPoints[i]].b;
 		}
 		pointCloud->lastHighlightedPoints = pointsToHighlight;
 
 		for (size_t i = 0; i < pointsToHighlight.size(); i++)
 		{
-			if (pointsToHighlight[i] > max)
-				max = pointsToHighlight[i];
+			if (pointsToHighlight[i] > maxIndex)
+				maxIndex = pointsToHighlight[i];
 
-			if (pointsToHighlight[i] < min)
-				min = pointsToHighlight[i];
+			if (pointsToHighlight[i] < minIndex)
+				minIndex = pointsToHighlight[i];
 
-			byte rColor = pointCloud->vertexInfo[pointsToHighlight[i]].color[0];
-			byte gColor = pointCloud->vertexInfo[pointsToHighlight[i]].color[1];
-			byte bColor = pointCloud->vertexInfo[pointsToHighlight[i]].color[2];
+			//byte rColor = pointCloud->pointsOriginalColor[pointsToHighlight[i]].r;
+			//byte gColor = pointCloud->pointsOriginalColor[pointsToHighlight[i]].g;
+			//byte bColor = pointCloud->pointsOriginalColor[pointsToHighlight[i]].b;
 
-			rColor = 255 - rColor;
-			gColor = 255 - gColor;
-			bColor = 255 - bColor;
+			//float highlightDelta = 0.033f / 0.250f; /*Time.deltaTime / BLINK_RATE_SECONDS*/
+			//static float highlightRatio = 0.0f;
+			//highlightRatio = fmodf(highlightRatio + highlightDelta, 1.0f);
 
-			pointCloud->vertexInfo[pointsToHighlight[i]].color[0] = rColor;
-			pointCloud->vertexInfo[pointsToHighlight[i]].color[1] = gColor;
-			pointCloud->vertexInfo[pointsToHighlight[i]].color[2] = bColor;
+			//glm::vec3 newPointColor = (1.0f / glm::vec3(rColor / 255.0f, gColor / 255.0f, bColor / 255.0f)) * highlightRatio;
+
+			//rColor = newPointColor.x * 255;
+			//gColor = newPointColor.y * 255;
+			//bColor = newPointColor.z * 255;
+
+			///*debugLog::getInstance().addToLog("highlightDelta: " + std::to_string(highlightDelta), "colorData");
+			//debugLog::getInstance().addToLog("highlightRatio: " + std::to_string(highlightRatio), "colorData");
+			//debugLog::getInstance().addToLog("newPointColor: ", newPointColor, "colorData");
+			//debugLog::getInstance().addToLog("rColor " + std::to_string(rColor), "colorData");
+			//debugLog::getInstance().addToLog("gColor " + std::to_string(gColor), "colorData");
+			//debugLog::getInstance().addToLog("bColor " + std::to_string(bColor), "colorData");*/
+
+			//pointCloud->vertexInfo[pointsToHighlight[i]].color[0] = rColor;
+			//pointCloud->vertexInfo[pointsToHighlight[i]].color[1] = gColor;
+			//pointCloud->vertexInfo[pointsToHighlight[i]].color[2] = bColor;
+
+			byte originalR = pointCloud->pointsOriginalColor[pointsToHighlight[i]].r;
+			byte originalG = pointCloud->pointsOriginalColor[pointsToHighlight[i]].g;
+			byte originalB = pointCloud->pointsOriginalColor[pointsToHighlight[i]].b;
+
+			byte invertedR = 255 - originalR;
+			byte invertedG = 255 - originalG;
+			byte invertedB = 255 - originalB;
+
+			pointCloud->vertexInfo[pointsToHighlight[i]].color[0] = originalR + (invertedR - originalR) * (pointCloud->highlightStep / 100.0f);
+			pointCloud->vertexInfo[pointsToHighlight[i]].color[1] = originalG + (invertedG - originalG) * (pointCloud->highlightStep / 100.0f);
+			pointCloud->vertexInfo[pointsToHighlight[i]].color[2] = originalB + (invertedB - originalB) * (pointCloud->highlightStep / 100.0f);
 		}
 
-		if (min == INT_MAX || max == INT_MIN)
+		if (minIndex == INT_MAX || maxIndex == INT_MIN)
 			return;
 
-		LOG.addToLog("DrawPointCloud after \"for (size_t i = 0; i < pointCloudToRender->getSearchOctree()->pointsToDelete.size(); i++)\"", "deleteEvents");
+		//LOG.addToLog("DrawPointCloud after \"for (size_t i = 0; i < pointCloudToRender->getSearchOctree()->pointsToDelete.size(); i++)\"", "deleteEvents");
 		
-		box.left = min * kVertexSize;
-		box.right = min * kVertexSize + (max - min) * kVertexSize;
+		box.left = minIndex * kVertexSize;
+		box.right = minIndex * kVertexSize + (maxIndex - minIndex) * kVertexSize;
 
-		LOG.addToLog("DrawPointCloud, vertex count: " + std::to_string(pointCloud->vertexInfo.size()), "deleteEvents");
+		//LOG.addToLog("DrawPointCloud, vertex count: " + std::to_string(pointCloud->vertexInfo.size()), "deleteEvents");
 
 		D3D11_BOX dbox{};
 		dbox.left = 0;
-		dbox.right = (max - min) * kVertexSize;
+		dbox.right = (maxIndex - minIndex) * kVertexSize;
 		dbox.top = 0;
 		dbox.bottom = 1;
 		dbox.front = 0;
 		dbox.back = 1;
 
-		LOG.addToLog("min: " + std::to_string(min), "deleteEvents");
+		/*LOG.addToLog("min: " + std::to_string(minIndex), "deleteEvents");
 		LOG.addToLog("dbox.right: " + std::to_string(dbox.right), "deleteEvents");
 
 		LOG.addToLog("box.left: " + std::to_string(box.left), "deleteEvents");
-		LOG.addToLog("box.right: " + std::to_string(box.right), "deleteEvents");
+		LOG.addToLog("box.right: " + std::to_string(box.right), "deleteEvents");*/
 
 		if (box.right / kVertexSize > pointCloud->vertexInfo.size())
 		{
@@ -919,7 +974,7 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 			return;
 		}
 
-		ctx->UpdateSubresource(pointCloud->intermediateVB, 0, &dbox, pointCloud->vertexInfo.data() + min, pointCloud->getPointCount() * kVertexSize, pointCloud->getPointCount() * kVertexSize);
+		ctx->UpdateSubresource(pointCloud->intermediateVB, 0, &dbox, pointCloud->vertexInfo.data() + minIndex, pointCloud->getPointCount() * kVertexSize, pointCloud->getPointCount() * kVertexSize);
 		ctx->CopySubresourceRegion(pointCloud->mainVB, 0, box.left, 0, 0, pointCloud->intermediateVB, 0, &dbox);
 	}
 }
@@ -1286,8 +1341,6 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API setLODInfo(float* val
 	if (LODIndex >= pointCloud::LODSettings.size() || LODIndex < 0)
 		return;
 
-	LOG.addToLog("setLODInfo: ", "TEST");
-
 	pointCloud::LODSettings[LODIndex].maxDistance = ((float*)(values))[0];
 	pointCloud::LODSettings[LODIndex].targetPercentOFPoints = ((float*)(values))[1];
 	pointCloud::LODSettings[LODIndex].takeEach_Nth_Point = (int)100.0f / pointCloud::LODSettings[LODIndex].targetPercentOFPoints;
@@ -1301,8 +1354,8 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestLODInfoFromUni
 	if (LODIndex >= pointCloud::LODSettings.size() || LODIndex < 0)
 		return;
 
-	LOG.addToLog("pointCloud::LODSettings[LODIndex].maxDistance: " + std::to_string(pointCloud::LODSettings[LODIndex].maxDistance), "TEST");
-	LOG.addToLog("pointCloud::LODSettings[LODIndex].targetPercentOFPoints: " + std::to_string(pointCloud::LODSettings[LODIndex].targetPercentOFPoints), "TEST");
+	//LOG.addToLog("pointCloud::LODSettings[LODIndex].maxDistance: " + std::to_string(pointCloud::LODSettings[LODIndex].maxDistance), "TEST");
+	//LOG.addToLog("pointCloud::LODSettings[LODIndex].targetPercentOFPoints: " + std::to_string(pointCloud::LODSettings[LODIndex].targetPercentOFPoints), "TEST");
 
 	maxDistance[0] = pointCloud::LODSettings[LODIndex].maxDistance;
 	targetPercentOFPoints[0] = pointCloud::LODSettings[LODIndex].targetPercentOFPoints;

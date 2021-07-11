@@ -182,16 +182,16 @@ public:
         if (point.y < nodeAABB.min[1] || point.y > nodeAABB.max[1]) instersect = false;
         if (point.z < nodeAABB.min[2] || point.z > nodeAABB.max[2]) instersect = false;
 
-//#ifdef FULL_LOGGING
-        //debugLog::getInstance().addToLog("point was: " + instersect ? "accepted" : "rejected", "OctreeEvents");
-        //if (!instersect)
-        //{
-        //    debugLog::getInstance().addToLog("point was: rejected", "OctreeEvents");
-        //    debugLog::getInstance().addToLog("point:", point, "OctreeEvents");
-        //    debugLog::getInstance().addToLog("nodeAABB.min:", nodeAABB.min, "OctreeEvents");
-        //    debugLog::getInstance().addToLog("nodeAABB.max:", nodeAABB.max, "OctreeEvents");
-        //}
-//#endif
+#ifdef FULL_LOGGING
+        debugLog::getInstance().addToLog("point was: " + instersect ? "accepted" : "rejected", "OctreeEvents");
+        if (!instersect)
+        {
+            debugLog::getInstance().addToLog("point was: rejected", "OctreeEvents");
+            debugLog::getInstance().addToLog("point:", point, "OctreeEvents");
+            debugLog::getInstance().addToLog("nodeAABB.min:", nodeAABB.min, "OctreeEvents");
+            debugLog::getInstance().addToLog("nodeAABB.max:", nodeAABB.max, "OctreeEvents");
+        }
+#endif
 
         if (objects.size() < capacity && instersect)
         {
@@ -340,16 +340,12 @@ public:
         }
     }
 
-    void isAtleastOnePointInSphere(glm::vec3& Center, float Radius, bool* result)
+    void isAtleastOnePointInSphere(glm::vec3& Center, float Radius)
     {
         isAtleastOnePointInSphereCounter++;
 
-        //if (*result)
         if (isAtleastOnePointInSphereResult)
             return;
-
-        //if (isAtleastOnePointInSphereCounter > 20)
-        //    return;
 
         double currentDistance = distance(center, Center);
 
@@ -360,11 +356,10 @@ public:
         {
             if (objects.size() > 0)
             {
-                debugLog::getInstance().addToLog("found on counter(if (objects.size() > 0)): " + std::to_string(isAtleastOnePointInSphereCounter), "isAtleastOnePointInSphere");
-                debugLog::getInstance().addToLog("time stamp: " + std::to_string(GetTickCount()), "isAtleastOnePointInSphere");
-                debugLog::getInstance().addToLog("node depth: " + std::to_string(this->depth), "isAtleastOnePointInSphere");
-                debugLog::getInstance().addToLog("bool isAtleastOnePointInSphereResult: " + std::to_string(isAtleastOnePointInSphereResult), "isAtleastOnePointInSphere");
-                //*result = true;
+                //debugLog::getInstance().addToLog("found on counter(if (objects.size() > 0)): " + std::to_string(isAtleastOnePointInSphereCounter), "isAtleastOnePointInSphere");
+                //debugLog::getInstance().addToLog("time stamp: " + std::to_string(GetTickCount()), "isAtleastOnePointInSphere");
+                //debugLog::getInstance().addToLog("node depth: " + std::to_string(this->depth), "isAtleastOnePointInSphere");
+                //debugLog::getInstance().addToLog("bool isAtleastOnePointInSphereResult: " + std::to_string(isAtleastOnePointInSphereResult), "isAtleastOnePointInSphere");
                 isAtleastOnePointInSphereResult = true;
                 return;
             }
@@ -373,23 +368,15 @@ public:
         {
             for (int i = 0; i < objects.size(); i++)
             {
-                //if (*result)
-                /*if (isAtleastOnePointInSphereResult)
-                    return;*/
-
                 currentDistance = distance(rawData->operator[](objects[i]).position, Center);
                 isAtleastOnePointInSphereChecksCounter++;
 
                 if (currentDistance < Radius)
                 {
-                    debugLog::getInstance().addToLog("found on counter(if (currentDistance < Radius)): " + std::to_string(isAtleastOnePointInSphereCounter), "isAtleastOnePointInSphere");
+                    /*debugLog::getInstance().addToLog("found on counter(if (currentDistance < Radius)): " + std::to_string(isAtleastOnePointInSphereCounter), "isAtleastOnePointInSphere");
                     debugLog::getInstance().addToLog("time stamp: " + std::to_string(GetTickCount()), "isAtleastOnePointInSphere");
                     debugLog::getInstance().addToLog("node depth: " + std::to_string(this->depth), "isAtleastOnePointInSphere");
-                    debugLog::getInstance().addToLog("bool isAtleastOnePointInSphereResult: " + std::to_string(isAtleastOnePointInSphereResult), "isAtleastOnePointInSphere");
-                    //debugLog::getInstance().addToLog("currentDistance: " + std::to_string(currentDistance), "isAtleastOnePointInSphere");
-                    //debugLog::getInstance().addToLog("Radius: " + std::to_string(Radius), "isAtleastOnePointInSphere");
-                    //debugLog::getInstance().addToLog("rawData->operator[](objects[i]).position: ", rawData->operator[](objects[i]).position, "isAtleastOnePointInSphere");
-                    //*result = true;
+                    debugLog::getInstance().addToLog("bool isAtleastOnePointInSphereResult: " + std::to_string(isAtleastOnePointInSphereResult), "isAtleastOnePointInSphere");*/
                     isAtleastOnePointInSphereResult = true;
                     return;
                 }
@@ -399,7 +386,7 @@ public:
             {
                 for (int i = 0; i < 8; i++)
                 {
-                    childs[i]->isAtleastOnePointInSphere(Center, Radius, result);
+                    childs[i]->isAtleastOnePointInSphere(Center, Radius);
                 }
             }
         }
@@ -450,10 +437,10 @@ public:
 
     bool addObject(int index)
     {
-#ifdef FULL_LOGGING
-        debugLog::getInstance().addToLog("point to add: ", rawData[index], "OctreeEvents");
-#endif
-        return root->addObject(root->rawData/*rawDataPointer*/->operator[](index).position, index);
+//#ifdef FULL_LOGGING
+//        debugLog::getInstance().addToLog("point to add: ", rawData[index], "OctreeEvents");
+//#endif
+        return root->addObject(root->rawData->operator[](index).position, index);
     }
 
     void deleteObjects(glm::vec3& Center, float Radius)
@@ -522,25 +509,22 @@ public:
 
     bool isAtleastOnePointInSphere(glm::vec3& Center, float Radius)
     {
-        DWORD time = GetTickCount();
         isAtleastOnePointInSphereCounter = 0;
         isAtleastOnePointInSphereChecksCounter = 0;
 
-        bool result = false;
         isAtleastOnePointInSphereResult = false;
-        root->isAtleastOnePointInSphere(Center, Radius, &result);
+        root->isAtleastOnePointInSphere(Center, Radius);
 
         //if (GetTickCount() - time > 0)
         //{
-            debugLog::getInstance().addToLog("isAtleastOnePointInSphereCounter: " + std::to_string(isAtleastOnePointInSphereCounter), "isAtleastOnePointInSphere");
+            /*debugLog::getInstance().addToLog("isAtleastOnePointInSphereCounter: " + std::to_string(isAtleastOnePointInSphereCounter), "isAtleastOnePointInSphere");
             debugLog::getInstance().addToLog("isAtleastOnePointInSphereChecksCounter: " + std::to_string(isAtleastOnePointInSphereChecksCounter), "isAtleastOnePointInSphere");
             debugLog::getInstance().addToLog("Radius: " + std::to_string(Radius), "isAtleastOnePointInSphere");
             debugLog::getInstance().addToLog("Time spent on isAtleastOnePointInSphere: " + std::to_string(GetTickCount() - time) + " ms", "isAtleastOnePointInSphere");
             debugLog::getInstance().addToLog("bool isAtleastOnePointInSphereResult: " + std::to_string(isAtleastOnePointInSphereResult), "isAtleastOnePointInSphere");
-            debugLog::getInstance().addToLog("===============================", "isAtleastOnePointInSphere");
+            debugLog::getInstance().addToLog("===============================", "isAtleastOnePointInSphere");*/
         //}
 
-        //return result;
         return isAtleastOnePointInSphereResult;
     }
 };
