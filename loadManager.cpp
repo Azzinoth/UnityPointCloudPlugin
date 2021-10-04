@@ -4,6 +4,149 @@
 LoadManager* LoadManager::_instance = nullptr;
 std::vector<LODSetting> pointCloud::LODSettings = std::vector<LODSetting>();
 
+void copyLAZvlr(laszip_header* dest, laszip_vlr_struct source)
+{
+	size_t i = 0;
+	if (dest->vlrs)
+	{
+		// overwrite existing VLR ?
+		for (i = 0; i < dest->number_of_variable_length_records; i++)
+		{
+			if ((strncmp(dest->vlrs[i].user_id, source.user_id, 16) == 0) && (dest->vlrs[i].record_id == source.record_id))
+			{
+				if (dest->vlrs[i].record_length_after_header)
+				{
+					dest->offset_to_point_data -= dest->vlrs[i].record_length_after_header;
+					dest->vlrs[i].record_length_after_header = 0;
+					delete[] dest->vlrs[i].data;
+					dest->vlrs[i].data = 0;
+				}
+				break;
+			}
+		}
+
+		// create new VLR
+		if (i == dest->number_of_variable_length_records)
+		{
+			dest->number_of_variable_length_records++;
+			dest->offset_to_point_data += 54;
+			dest->vlrs = (laszip_vlr_struct*)realloc(dest->vlrs, sizeof(laszip_vlr_struct) * dest->number_of_variable_length_records);
+			if (dest->vlrs == 0)
+			{
+				//sprintf(laszip_dll->error, "reallocating vlrs[%u] array", dest->number_of_variable_length_records);
+				//return 1;
+			}
+		}
+	}
+	else
+	{
+		dest->number_of_variable_length_records = 1;
+		dest->offset_to_point_data += 54;
+		dest->vlrs = (laszip_vlr_struct*)malloc(sizeof(laszip_vlr_struct));
+		if (dest->vlrs == 0)
+		{
+			//sprintf(laszip_dll->error, "allocating vlrs[1] array");
+			//return 1;
+		}
+	}
+
+	// zero the VLR
+	memset(&(dest->vlrs[i]), 0, sizeof(laszip_vlr_struct));
+
+	// copy the VLR
+	dest->vlrs[i].reserved = 0x0;
+	strncpy(dest->vlrs[i].user_id, source.user_id, 16);
+	dest->vlrs[i].record_id = source.record_id;
+	dest->vlrs[i].record_length_after_header = source.record_length_after_header;
+	if (source.description)
+	{
+		strncpy(dest->vlrs[i].description, source.description, 32);
+	}
+	else
+	{
+		sprintf(dest->vlrs[i].description, "LASzip DLL");
+	}
+
+	if (source.record_length_after_header)
+	{
+		dest->offset_to_point_data += source.record_length_after_header;
+		dest->vlrs[i].data = new unsigned char[source.record_length_after_header];
+		memcpy(dest->vlrs[i].data, source.data, source.record_length_after_header);
+	}
+}
+
+void copyLAZFileHeader(laszip_header* dest, laszip_header* source)
+{
+	dest->file_source_ID = source->file_source_ID;
+	dest->global_encoding = source->global_encoding;
+	dest->project_ID_GUID_data_1 = source->project_ID_GUID_data_1;
+	dest->project_ID_GUID_data_2 = source->project_ID_GUID_data_2;
+	dest->project_ID_GUID_data_3 = source->project_ID_GUID_data_3;
+	memcpy(dest->project_ID_GUID_data_4, source->project_ID_GUID_data_4, 8);
+	dest->version_major = source->version_major;
+	dest->version_minor = source->version_minor;
+	memcpy(dest->system_identifier, source->system_identifier, 32);
+	memcpy(dest->generating_software, source->generating_software, 32);
+	dest->file_creation_day = source->file_creation_day;
+	dest->file_creation_year = source->file_creation_year;
+	dest->header_size = source->header_size;
+	dest->offset_to_point_data = source->header_size;
+	dest->number_of_variable_length_records = source->number_of_variable_length_records;
+	dest->point_data_format = source->point_data_format;
+	dest->point_data_record_length = source->point_data_record_length;
+	dest->number_of_point_records = source->number_of_point_records;
+	for (int i = 0; i < 5; i++)
+	{
+		dest->number_of_points_by_return[i] = source->number_of_points_by_return[i];
+	}
+	dest->x_scale_factor = source->x_scale_factor;
+	dest->y_scale_factor = source->y_scale_factor;
+	dest->z_scale_factor = source->z_scale_factor;
+	dest->x_offset = source->x_offset;
+	dest->y_offset = source->y_offset;
+	dest->z_offset = source->z_offset;
+	dest->max_x = source->max_x;
+	dest->min_x = source->min_x;
+	dest->max_y = source->max_y;
+	dest->min_y = source->min_y;
+	dest->max_z = source->max_z;
+	dest->min_z = source->min_z;
+
+	// LAS 1.3 and higher only
+	dest->start_of_waveform_data_packet_record = source->start_of_waveform_data_packet_record;
+
+	// LAS 1.4 and higher only
+	dest->start_of_first_extended_variable_length_record = source->start_of_first_extended_variable_length_record;
+	dest->number_of_extended_variable_length_records = source->number_of_extended_variable_length_records;
+	dest->extended_number_of_point_records = source->extended_number_of_point_records;
+	for (int i = 0; i < 15; i++)
+	{
+		dest->extended_number_of_points_by_return[i] = source->extended_number_of_points_by_return[i];
+	}
+
+	// we may modify output because we omit any user defined data that may be ** the header
+	if (source->user_data_in_header_size)
+	{
+		dest->header_size -= source->user_data_in_header_size;
+		dest->offset_to_point_data -= source->user_data_in_header_size;
+	}
+
+	// add all the VLRs
+	if (source->number_of_variable_length_records)
+	{
+		for (size_t i = 0; i < source->number_of_variable_length_records; i++)
+		{
+			copyLAZvlr(dest, source->vlrs[i]);
+		}
+	}
+
+	// we may modify output because we omit any user defined data that may be *after* the header
+	if (source->user_data_after_header_size)
+	{
+		//fprintf(stderr, "omitting %d bytes of user_data_after_header\n", source->user_data_after_header_size);
+	}
+}
+
 void LoadManager::loadFunc()
 {
 	while (true)
@@ -28,6 +171,8 @@ void LoadManager::loadFunc()
 			double newMaxY = -DBL_MAX;
 			double newMinZ = DBL_MAX;
 			double newMaxZ = -DBL_MAX;
+
+			LAZFileInfo* fileInfo = nullptr;
 
 			// if file is in our own format
 			if (currentPath[currentPath.size() - 4] == '.' &&
@@ -166,9 +311,9 @@ void LoadManager::loadFunc()
 					return;
 				}
 
-				//LAZFileInfo* fileInfo = new LAZFileInfo();
-				//copyLAZFileHeader(&fileInfo->header, header);
-				//fileInfo->compressed = is_compressed;
+				fileInfo = new LAZFileInfo();
+				copyLAZFileHeader(&fileInfo->header, header);
+				fileInfo->compressed = is_compressed;
 
 				debugLog::getInstance().addToLog("Compressed: " + std::string(is_compressed ? "true" : "false"), "File_Load_Log");
 				debugLog::getInstance().addToLog("Signature: " + std::string(header->generating_software), "File_Load_Log");
@@ -246,7 +391,7 @@ void LoadManager::loadFunc()
 					}
 
 					//debugLog::getInstance().addToLog("if (laszip_read_point(laszip_reader)): " + std::to_string(p_count), "testThread");
-					//fileInfo->LAZpoints.push_back(laszip_point(*point));
+					fileInfo->LAZpoints.push_back(laszip_point(*point));
 
 					// point->X -> lonX, point->Y -> latY, point->Z -> depth
 					float readX = float(point->X * header->x_scale_factor);
@@ -301,7 +446,7 @@ void LoadManager::loadFunc()
 					p_count++;
 				}
 
-				debugLog::getInstance().addToLog("while (p_count < npoints)", "testThread");
+				//debugLog::getInstance().addToLog("while (p_count < npoints)", "testThread");
 
 				if (header->point_data_format == 1)
 				{
@@ -452,9 +597,11 @@ void LoadManager::loadFunc()
 			debugLog::getInstance().addToLog("rangeXYZ: ", glm::vec3(rangeX, rangeY, rangeZ), "OctreeEvents");
 			currentPointCloud->initializeOctree(rangeX, rangeY, rangeZ, glm::vec3(newMinX + rangeX / 2.0f, newMinY + rangeY / 2.0f, newMinZ + rangeZ / 2.0f));
 			debugLog::getInstance().addToLog("after initializeOctree", "testThread");
-			//currentPointCloud->loadedFrom = fileInfo;
-			//currentPointCloud->loadedFrom->resultingPointCloud = pointClouds.back();
+			currentPointCloud->loadedFrom = fileInfo;
+			if (currentPointCloud->loadedFrom != nullptr)
+				currentPointCloud->loadedFrom->resultingPointCloud = currentPointCloud;
 
+			debugLog::getInstance().addToLog("Points inserted: " + std::to_string(currentPointCloud->getSearchOctree()->getPointsInserted()), "OctreeEvents");
 			debugLog::getInstance().addToLog("Total nodes created: " + std::to_string(currentPointCloud->getSearchOctree()->getDebugNodeCount()), "OctreeEvents");
 			debugLog::getInstance().addToLog("Rootnode AABB size: " + std::to_string(currentPointCloud->getSearchOctree()->root->nodeAABB.size), "OctreeEvents");
 			debugLog::getInstance().addToLog("Rootnode AABB min: ", currentPointCloud->getSearchOctree()->root->nodeAABB.min, "OctreeEvents");

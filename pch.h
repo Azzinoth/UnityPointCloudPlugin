@@ -2,18 +2,17 @@
 #define PCH_H
 
 #include "loadManager.h"
-#include "debugLog.h"
 
 #include "framework.h"
 #include <iostream>
-#include <d3d11.h>
-//#include <d3dcompiler.h>
+
+#include "computeShader.h"
+
 #include "Unity/IUnityGraphicsD3D11.h"
 #include "Unity/IUnityInterface.h"
 #include "Unity/IUnityGraphics.h"
 
 #include "comdef.h"
-#include <system_error>
 
 #include "thirdparty/laszip/include/laszip_api.h"
 

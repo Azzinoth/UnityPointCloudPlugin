@@ -80,8 +80,10 @@ public:
 		debugLog::getInstance().addToLog("start of ~pointCloud", "OctreeMemory");
 
 		delete searchOctree;
-		mainVB->Release();
-		intermediateVB->Release();
+		if (mainVB != nullptr)
+			mainVB->Release();
+		if (mainVB != nullptr)
+			intermediateVB->Release();
 		delete loadedFrom;
 
 		debugLog::getInstance().addToLog("end of ~pointCloud", "OctreeMemory");
@@ -99,11 +101,11 @@ public:
 		for (int i = 0; i < vertexInfo.size(); i++)
 		{
 			bool accepted = searchOctree->addObject(i);
-			/*if (!accepted)
+			if (!accepted)
 			{
 				debugLog::getInstance().addToLog("point was: rejected", "OctreeEvents");
 				debugLog::getInstance().addToLog("point:", vertexInfo[i].position, "OctreeEvents");
-			}*/
+			}
 		}
 		debugLog::getInstance().addToLog(" after for (int i = 0; i < vertexInfo.size(); i++)", "testThread");
 	}

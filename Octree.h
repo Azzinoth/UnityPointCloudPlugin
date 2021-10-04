@@ -18,11 +18,12 @@ struct MeshVertex
 };
 
 static int deletedCount = 0;
-static const int capacity = 250;
+static const int capacity = 500;
 static float sqrtTwo = sqrt(2.0f);
 static int count = 0;
 static int debugMaxNodeDepth = 0;
 static int debugNodeCount = 0;
+static int debugPointsInserted = 0;
 
 static int isAtleastOnePointInSphereCounter = 0;
 static int isAtleastOnePointInSphereChecksCounter = 0;
@@ -131,7 +132,7 @@ public:
     {
         debugNodeCount += 8;
 #ifdef FULL_LOGGING
-        debugLog::getInstance().addToLog("8 nodes added. In total: " + std::to_string(debugNodeCount), "OctreeEvents");
+        //debugLog::getInstance().addToLog("8 nodes added. In total: " + std::to_string(debugNodeCount), "OctreeEvents");
 #endif
         childsInitialized = true;
         childs = new octreeNode*[8];
@@ -174,28 +175,39 @@ public:
     bool addObject(glm::vec3& point, int index)
     {
 #ifdef FULL_LOGGING
-        debugLog::getInstance().addToLog("point to add: ", point, "OctreeEvents");
+        if (point.x > 578.1 && point.x < 578.3 &&
+            point.y > -830.4 && point.y < -830.32 &&
+            point.z > 558.5 && point.z < 558.9)
+        {
+            debugLog::getInstance().addToLog("point to add: ", point, "OctreeEvents");
+        }
 #endif
 
         bool instersect = true;
-        if (point.x < nodeAABB.min[0] || point.x > nodeAABB.max[0]) instersect = false;
-        if (point.y < nodeAABB.min[1] || point.y > nodeAABB.max[1]) instersect = false;
-        if (point.z < nodeAABB.min[2] || point.z > nodeAABB.max[2]) instersect = false;
+        if (point.x < nodeAABB.min[0] - 0.01f || point.x > nodeAABB.max[0] + 0.01f) instersect = false;
+        if (point.y < nodeAABB.min[1] - 0.01f || point.y > nodeAABB.max[1] + 0.01f) instersect = false;
+        if (point.z < nodeAABB.min[2] - 0.01f || point.z > nodeAABB.max[2] + 0.01f) instersect = false;
 
 #ifdef FULL_LOGGING
-        debugLog::getInstance().addToLog("point was: " + instersect ? "accepted" : "rejected", "OctreeEvents");
-        if (!instersect)
+        if (point.x > 578.1 && point.x < 578.3 &&
+            point.y > -830.4 && point.y < -830.32 &&
+            point.z > 558.5 && point.z < 558.9)
         {
-            debugLog::getInstance().addToLog("point was: rejected", "OctreeEvents");
-            debugLog::getInstance().addToLog("point:", point, "OctreeEvents");
-            debugLog::getInstance().addToLog("nodeAABB.min:", nodeAABB.min, "OctreeEvents");
-            debugLog::getInstance().addToLog("nodeAABB.max:", nodeAABB.max, "OctreeEvents");
+            debugLog::getInstance().addToLog("point was: " + instersect ? "accepted" : "rejected", "OctreeEvents");
+            if (!instersect)
+            {
+                debugLog::getInstance().addToLog("point was: rejected", "OctreeEvents");
+                debugLog::getInstance().addToLog("point:", point, "OctreeEvents");
+                debugLog::getInstance().addToLog("nodeAABB.min:", nodeAABB.min, "OctreeEvents");
+                debugLog::getInstance().addToLog("nodeAABB.max:", nodeAABB.max, "OctreeEvents");
+            }
         }
 #endif
 
         if (objects.size() < capacity && instersect)
         {
             objects.push_back(index);
+            debugPointsInserted++;
             return true;
         }
         else if (instersect)
@@ -421,6 +433,7 @@ public:
         deletedCount = 0;
         debugMaxNodeDepth = 0;
         debugNodeCount = 0;
+        debugPointsInserted = 0;
 
         root = new octreeNode(worldSize, worldCenter, 0);
         root->parent = root;
@@ -480,6 +493,11 @@ public:
     int getDebugMaxNodeDepth()
     {
         return debugMaxNodeDepth;
+    }
+
+    int getPointsInserted()
+    {
+        return debugPointsInserted;
     }
 
     bool isInOctreeBound(glm::vec3& Center, float Radius)

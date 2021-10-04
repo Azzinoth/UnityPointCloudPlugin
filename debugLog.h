@@ -38,3 +38,5 @@ private:
 	std::unordered_map<std::string, std::fstream*> openedFiles;
 	std::string vec3ToString(glm::vec3 vector);
 };
+
+#define LOG debugLog::getInstance()
