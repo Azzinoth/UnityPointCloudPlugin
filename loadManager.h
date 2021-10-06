@@ -5,7 +5,9 @@
 #include <thread>
 #include "thirdparty/laszip/include/laszip_api.h"
 
-static ID3D11Device* m_Device;
+#define DELETED_POINTS_COORDINATE -10000.0f
+
+//static ID3D11Device* m_Device;
 
 class pointCloud;
 struct LAZFileInfo
@@ -40,6 +42,7 @@ struct ColorInfo
 class pointCloud
 {
 	octree* searchOctree = nullptr;
+	//octree* originalSearchOctree = nullptr;
 public:
 	ID3D11Buffer* mainVB;
 	ID3D11Buffer* intermediateVB;
@@ -49,7 +52,7 @@ public:
 	std::vector<float> vertexIntensity;
 
 	std::vector<int> lastHighlightedPoints;
-	std::vector<ColorInfo> pointsOriginalColor;
+	std::vector<MeshVertex> originalData;
 	int highlightStep = 0;
 
 	std::vector<LODInformation> LODs;
@@ -94,13 +97,13 @@ public:
 		double AABBsize = rangeX > rangeY ? rangeX : rangeY;
 		AABBsize = AABBsize > rangeZ ? AABBsize : rangeZ;
 
-		searchOctree->initialize(float(AABBsize), worldCenter, &vertexInfo);
+		searchOctree->initialize(float(AABBsize), worldCenter);
 		debugLog::getInstance().addToLog("after searchOctree->initialize", "testThread");
 		debugLog::getInstance().addToLog("vertexInfo.size(): " + std::to_string(vertexInfo.size()), "testThread");
 		
 		for (int i = 0; i < vertexInfo.size(); i++)
 		{
-			bool accepted = searchOctree->addObject(i);
+			bool accepted = searchOctree->addObject(vertexInfo[i], i);
 			if (!accepted)
 			{
 				debugLog::getInstance().addToLog("point was: rejected", "OctreeEvents");
@@ -108,6 +111,8 @@ public:
 			}
 		}
 		debugLog::getInstance().addToLog(" after for (int i = 0; i < vertexInfo.size(); i++)", "testThread");
+
+		//originalSearchOctree = searchOctree;
 	}
 
 	int getPointCount()
@@ -117,9 +122,13 @@ public:
 
 	octree* getSearchOctree()
 	{
-		//searchOctree->updateRawDataPointer(&vertexInfo);
 		return searchOctree;
 	}
+
+	/*octree* getOriginalSearchOctree()
+	{
+		return originalSearchOctree;
+	}*/
 };
 
 class pointCloud;

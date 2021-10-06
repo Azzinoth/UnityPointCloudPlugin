@@ -5,6 +5,13 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+
+#include "computeShader.h"
+
+#include "Unity/IUnityGraphicsD3D11.h"
+#include "Unity/IUnityInterface.h"
+#include "Unity/IUnityGraphics.h"
+
 #define GLM_FORCE_XYZW_ONLY
 #include "glm/gtc/type_ptr.hpp"
 #include "glm/mat4x4.hpp"
@@ -40,3 +47,18 @@ private:
 };
 
 #define LOG debugLog::getInstance()
+
+class DX11GPU
+{
+public:
+	SINGLETON_PUBLIC_PART(DX11GPU)
+
+	void initialize(IUnityInterfaces* interfaces);
+	ID3D11Device* getDevice();
+private:
+	SINGLETON_PRIVATE_PART(DX11GPU)
+
+	ID3D11Device* m_Device = nullptr;
+};
+
+#define GPU DX11GPU::getInstance()

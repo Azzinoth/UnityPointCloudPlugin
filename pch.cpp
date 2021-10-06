@@ -58,7 +58,6 @@ static glm::vec3 deletionSpherePosition = glm::vec3(0.0f);
 static float deletionSphereSize = 0.0f;
 
 static float LODTransitionDistance = 3500.0f;
-#define DELETED_POINTS_COORDINATE -10000.0f
 
 #ifdef USE_COMPUTE_SHADER
 const BYTE kVertexShaderCode[] =
@@ -982,12 +981,16 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUn
 
 		if (pointClouds[i]->getSearchOctree()->isInOctreeBound(localPosition, size))
 		{
+			UNDO_MANAGER.setPointCloud(pointClouds[i]);
+			UNDO_MANAGER.addDeleteAction(localPosition, size);
 			pointClouds[i]->getSearchOctree()->deleteObjects(localPosition, size);
 		}
 
 		if (pointClouds[i]->getSearchOctree()->pointsToDelete.size() > 0)
 		{
 			LOG.addToLog("==============================================================", "deleteEvents");
+			LOG.addToLog("Brush location: ", localPosition, "deleteEvents");
+			LOG.addToLog("Brush size: " + std::to_string(size), "deleteEvents");
 			LOG.addToLog("pointsToDelete size: " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
 		}
 	}
@@ -1121,7 +1124,7 @@ static void CreateResources()
 	desc.ByteWidth = 64;
 	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	desc.CPUAccessFlags = 0;
-	m_Device->CreateBuffer(&desc, NULL, &m_CB);
+	GPU.getDevice()->CreateBuffer(&desc, NULL, &m_CB);
 
 	// shaders
 	ID3DBlob* pVSBlob = nullptr;
@@ -1142,12 +1145,12 @@ static void CreateResources()
 	//	errorBlob->Release();
 	//}
 
-	hr = m_Device->CreateVertexShader(kVertexShaderCode, sizeof(kVertexShaderCode), nullptr, &m_VertexShader);
-	//hr = m_Device->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &m_VertexShader);
+	hr = GPU.getDevice()->CreateVertexShader(kVertexShaderCode, sizeof(kVertexShaderCode), nullptr, &m_VertexShader);
+	//hr = GPU.getDevice()->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &m_VertexShader);
 
 	if (FAILED(hr))
 		LOG.addToLog("Failed to create vertex shader.", "computeShader");
-	hr = m_Device->CreatePixelShader(kPixelShaderCode, sizeof(kPixelShaderCode), nullptr, &m_PixelShader);
+	hr = GPU.getDevice()->CreatePixelShader(kPixelShaderCode, sizeof(kPixelShaderCode), nullptr, &m_PixelShader);
 	if (FAILED(hr))
 		LOG.addToLog("Failed to create pixel shader.", "computeShader");
 
@@ -1159,8 +1162,8 @@ static void CreateResources()
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
-		m_Device->CreateInputLayout(s_DX11InputElementDesc, 2, kVertexShaderCode, sizeof(kVertexShaderCode), &m_InputLayout);
-		//m_Device->CreateInputLayout(s_DX11InputElementDesc, 2, pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), &m_InputLayout);
+		GPU.getDevice()->CreateInputLayout(s_DX11InputElementDesc, 2, kVertexShaderCode, sizeof(kVertexShaderCode), &m_InputLayout);
+		//GPU.getDevice()->CreateInputLayout(s_DX11InputElementDesc, 2, pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), &m_InputLayout);
 	}
 
 	// render states
@@ -1169,20 +1172,20 @@ static void CreateResources()
 	rsdesc.FillMode = D3D11_FILL_SOLID;
 	rsdesc.CullMode = D3D11_CULL_NONE;
 	rsdesc.DepthClipEnable = TRUE;
-	m_Device->CreateRasterizerState(&rsdesc, &m_RasterState);
+	GPU.getDevice()->CreateRasterizerState(&rsdesc, &m_RasterState);
 
 	D3D11_DEPTH_STENCIL_DESC dsdesc;
 	memset(&dsdesc, 0, sizeof(dsdesc));
 	dsdesc.DepthEnable = TRUE;
 	dsdesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	dsdesc.DepthFunc = D3D11_COMPARISON_GREATER_EQUAL;
-	m_Device->CreateDepthStencilState(&dsdesc, &m_DepthState);
+	GPU.getDevice()->CreateDepthStencilState(&dsdesc, &m_DepthState);
 
 	D3D11_BLEND_DESC bdesc;
 	memset(&bdesc, 0, sizeof(bdesc));
 	bdesc.RenderTarget[0].BlendEnable = FALSE;
 	bdesc.RenderTarget[0].RenderTargetWriteMask = 0xF;
-	m_Device->CreateBlendState(&bdesc, &m_BlendState);
+	GPU.getDevice()->CreateBlendState(&bdesc, &m_BlendState);
 
 	// Compute shader.
 	// C:/Users/kberegovyi/Downloads/ARNav2_compute_08.16.2021/Assets/Plugins/PointCloudPlugin/computeShader.hlsl
@@ -1190,7 +1193,7 @@ static void CreateResources()
 
 	//"C:/Users/kberegovyi/Downloads/ARNav2_compute_08.16.2021/Assets/Plugins/PointCloudPlugin/computeShader_DELETE.hlsl"
 	
-	compileAndCreateComputeShader(m_Device, (BYTE*)g_CSMain, &computeShader);
+	compileAndCreateComputeShader(GPU.getDevice(), (BYTE*)g_CSMain, &computeShader);
 }
 
 const int kVertexSize = 12 + 4;
@@ -1220,9 +1223,9 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 
 		for (size_t i = 0; i < pointCloud->vertexInfo.size(); i++)
 		{
-			pointCloud->vertexInfo[i].color[0] = pointCloud->pointsOriginalColor[i].r;
-			pointCloud->vertexInfo[i].color[1] = pointCloud->pointsOriginalColor[i].g;
-			pointCloud->vertexInfo[i].color[2] = pointCloud->pointsOriginalColor[i].b;
+			pointCloud->vertexInfo[i].color[0] = pointCloud->originalData[i].color[0];
+			pointCloud->vertexInfo[i].color[1] = pointCloud->originalData[i].color[1];
+			pointCloud->vertexInfo[i].color[2] = pointCloud->originalData[i].color[2];
 		}
 
 		//LOG.addToLog("pointCloud->pointsOriginalColor[0].r: " + std::to_string(pointCloud->pointsOriginalColor[0].r), "highlightCleanUp");
@@ -1277,9 +1280,9 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 			if (pointCloud->lastHighlightedPoints[i] < minIndex)
 				minIndex = pointCloud->lastHighlightedPoints[i];
 
-			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[0] = pointCloud->pointsOriginalColor[pointCloud->lastHighlightedPoints[i]].r;
-			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[1] = pointCloud->pointsOriginalColor[pointCloud->lastHighlightedPoints[i]].g;
-			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[2] = pointCloud->pointsOriginalColor[pointCloud->lastHighlightedPoints[i]].b;
+			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[0] = pointCloud->originalData[pointCloud->lastHighlightedPoints[i]].color[0];
+			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[1] = pointCloud->originalData[pointCloud->lastHighlightedPoints[i]].color[1];
+			pointCloud->vertexInfo[pointCloud->lastHighlightedPoints[i]].color[2] = pointCloud->originalData[pointCloud->lastHighlightedPoints[i]].color[2];
 		}
 		pointCloud->lastHighlightedPoints = pointsToHighlight;
 
@@ -1316,9 +1319,9 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 			//pointCloud->vertexInfo[pointsToHighlight[i]].color[1] = gColor;
 			//pointCloud->vertexInfo[pointsToHighlight[i]].color[2] = bColor;
 
-			byte originalR = pointCloud->pointsOriginalColor[pointsToHighlight[i]].r;
-			byte originalG = pointCloud->pointsOriginalColor[pointsToHighlight[i]].g;
-			byte originalB = pointCloud->pointsOriginalColor[pointsToHighlight[i]].b;
+			byte originalR = pointCloud->originalData[pointsToHighlight[i]].color[0];
+			byte originalG = pointCloud->originalData[pointsToHighlight[i]].color[1];
+			byte originalB = pointCloud->originalData[pointsToHighlight[i]].color[2];
 
 			byte invertedR = 255 - originalR;
 			byte invertedG = 255 - originalG;
@@ -1369,11 +1372,11 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 	if (!pointCloudToRender->wasFullyLoaded)
 		return;
 
-	//LOG.addToLog("DrawPointCloud()_START: " + std::system_category().message(m_Device->GetDeviceRemovedReason()), "computeShader");
+	//LOG.addToLog("DrawPointCloud()_START: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 
 	static int pointsToDraw = 0;
 #ifdef USE_COMPUTE_SHADER
-	//getComputeShaderResultCounter(m_Device, *current_CS_UAV/*result_CS_UAV*/);
+	//getComputeShaderResultCounter(GPU.getDevice(), *current_CS_UAV/*result_CS_UAV*/);
 	//runMyComputeShader();
 
 	if (inputPoints_CS_SRV == nullptr)
@@ -1384,8 +1387,8 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		LOG.addToLog("allPointsData_CS_SRV == nullptr updated", "computeShader");
 		if (current_CS_UAV == nullptr)
 			LOG.addToLog("current_CS_UAV == nullptr", "computeShader");
-		pointsToDraw = getComputeShaderResultCounter(m_Device, *current_CS_UAV/*result_CS_UAV*/);
-		LOG.addToLog("getComputeShaderResultCounter(m_Device, *current_CS_UAV/*result_CS_UAV*/);", "computeShader");
+		pointsToDraw = getComputeShaderResultCounter(GPU.getDevice(), *current_CS_UAV/*result_CS_UAV*/);
+		LOG.addToLog("getComputeShaderResultCounter(GPU.getDevice(), *current_CS_UAV/*result_CS_UAV*/);", "computeShader");
 		currentInputPoints_CS_SRV = &result_CS_SRV;
 		current_CS_UAV = &resultSecond_CS_UAV;
 	}
@@ -1425,7 +1428,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 	//}
 
 	ID3D11DeviceContext* ctx = NULL;
-	m_Device->GetImmediateContext(&ctx);
+	GPU.getDevice()->GetImmediateContext(&ctx);
 
 	ctx->OMSetDepthStencilState(m_DepthState, 0);
 	ctx->RSSetState(m_RasterState);
@@ -1451,7 +1454,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 #else
 		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 #endif
-		m_Device->CreateBuffer(&desc, NULL, &pointCloudToRender->mainVB);
+		GPU.getDevice()->CreateBuffer(&desc, NULL, &pointCloudToRender->mainVB);
 
 		/*descBuffer.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
 		descBuffer.ByteWidth = sizeof(MeshVertex) * NUM_ELEMENTS;
@@ -1461,14 +1464,14 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		desc.Usage = D3D11_USAGE_DEFAULT;
 		desc.ByteWidth = UINT(pointCloudToRender->vertexInfo.size() * 16);
 		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		m_Device->CreateBuffer(&desc, NULL, &pointCloudToRender->intermediateVB);
+		GPU.getDevice()->CreateBuffer(&desc, NULL, &pointCloudToRender->intermediateVB);
 
 		desc.Usage = D3D11_USAGE_DEFAULT;
 		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		for (size_t i = 0; i < pointCloudToRender->LODs.size(); i++)
 		{
 			desc.ByteWidth = UINT(pointCloudToRender->LODs[i].vertexInfo.size() * 16);
-			m_Device->CreateBuffer(&desc, NULL, &pointCloudToRender->LODs[i].VB);
+			GPU.getDevice()->CreateBuffer(&desc, NULL, &pointCloudToRender->LODs[i].VB);
 		}
 
 		ctx->UpdateSubresource(pointCloudToRender->mainVB, 0, nullptr, pointCloudToRender->vertexInfo.data(), pointCloudToRender->getPointCount() * kVertexSize, pointCloudToRender->getPointCount() * kVertexSize);
@@ -1487,11 +1490,11 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 #ifdef USE_COMPUTE_SHADER
 	ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
 	ctx->VSSetShaderResources(0, 1, current_CS_SRV/*&result_CS_SRV*/);
-	//int pointsToDraw = getComputeShaderResultCounter(m_Device, *current_CS_UAV/*result_CS_UAV*/);
+	//int pointsToDraw = getComputeShaderResultCounter(GPU.getDevice(), *current_CS_UAV/*result_CS_UAV*/);
 
 	if (deletionOccuredThisFrame)
 	{
-		pointsToDraw = getComputeShaderResultCounter(m_Device, *current_CS_UAV);
+		pointsToDraw = getComputeShaderResultCounter(GPU.getDevice(), *current_CS_UAV);
 
 		currentInputPoints_CS_SRV = current_CS_SRV == &result_CS_SRV ? &resultSecond_CS_SRV : &result_CS_SRV;
 
@@ -1559,8 +1562,9 @@ static void ProcessDeviceEvent(UnityGfxDeviceEventType type, IUnityInterfaces* i
 	{
 		case kUnityGfxDeviceEventInitialize:
 		{
-			IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
-			m_Device = d3d->GetDevice();
+			GPU.initialize(interfaces);
+			//IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
+			//m_Device = d3d->GetDevice();
 			CreateResources();
 			break;
 		}
@@ -2307,10 +2311,10 @@ void runMyComputeShader()
 	if (pointClouds.size() == 0 || !pointClouds[0]->wasFullyLoaded || testFrustum == nullptr || (GetTickCount() - startTime < 1000))
 		return;
 
-	//LOG.addToLog("runMyComputeShader()_START: " + std::system_category().message(m_Device->GetDeviceRemovedReason()), "computeShader");
+	//LOG.addToLog("runMyComputeShader()_START: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 
 	ID3D11DeviceContext* ctx = NULL;
-	m_Device->GetImmediateContext(&ctx);
+	GPU.getDevice()->GetImmediateContext(&ctx);
 
 	if (inputPoints_CS_SRV == nullptr)
 	{
@@ -2333,11 +2337,11 @@ void runMyComputeShader()
 		descBuffer.StructureByteStride = sizeof(MeshVertex);
 		D3D11_SUBRESOURCE_DATA InitData;
 		InitData.pSysMem = &allPointsData_CS[0];
-		auto result = m_Device->CreateBuffer(&descBuffer, &InitData, &allPointsDataBuffer_CS);
+		auto result = GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &allPointsDataBuffer_CS);
 		//HRESULT result = 0;
 		//LOG.addToLog("pointClouds[0]->vertexInfo.size(): " + std::to_string(pointClouds[0]->vertexInfo.size()), "computeShader");
-		//LOG.addToLog("m_Device->CreateBuffer(&descBuffer, &InitData, &g_pBuf0);: " + std::system_category().message(result), "computeShader");
-		//LOG.addToLog("m_Device->CreateBuffer(&descBuffer, &InitData, &g_pBuf0);: " + std::system_category().message(m_Device->GetDeviceRemovedReason()), "computeShader");
+		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf0);: " + std::system_category().message(result), "computeShader");
+		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf0);: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 
 		InitData.pSysMem = &InputData_CS[0];
 #ifdef FLOAT_TEST
@@ -2347,31 +2351,31 @@ void runMyComputeShader()
 		descBuffer.ByteWidth = sizeof(MeshVertex) * 24;
 #endif // FLOAT_TEST
 
-		result = m_Device->CreateBuffer(&descBuffer, &InitData, &InputDataBuffer_CS);
-		//LOG.addToLog("m_Device->CreateBuffer(&descBuffer, &InitData, &g_pBuf1);: " + std::system_category().message(result), "computeShader");
-		//LOG.addToLog("m_Device->CreateBuffer(&descBuffer, &InitData, &g_pBuf1);: " + std::system_category().message(m_Device->GetDeviceRemovedReason()), "computeShader");
+		result = GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &InputDataBuffer_CS);
+		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf1);: " + std::system_category().message(result), "computeShader");
+		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf1);: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 		descBuffer.ByteWidth = sizeof(MeshVertex) * pointClouds[0]->vertexInfo.size();
 		descBuffer.StructureByteStride = sizeof(MeshVertex);
-		result = m_Device->CreateBuffer(&descBuffer, nullptr, &resultBuffer_CS);
-		result = m_Device->CreateBuffer(&descBuffer, nullptr, &resultBufferSecond_CS);
+		result = GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &resultBuffer_CS);
+		result = GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &resultBufferSecond_CS);
 		currentBuffer_CS = &resultBuffer_CS;
-		//LOG.addToLog("m_Device->CreateBuffer(&descBuffer, nullptr, &g_pBufResult);: " + std::system_category().message(result), "computeShader");
-		//LOG.addToLog("m_Device->CreateBuffer(&descBuffer, nullptr, &g_pBufResult);: " + std::system_category().message(m_Device->GetDeviceRemovedReason()), "computeShader");
+		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &g_pBufResult);: " + std::system_category().message(result), "computeShader");
+		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &g_pBufResult);: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 
 		// DEBUG
 		result = allPointsDataBuffer_CS->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Buffer0") - 1, "Buffer0");
 		//LOG.addToLog("g_pBuf0->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof(\"Buffer0\") - 1, \"Buffer0\");: " + std::system_category().message(result), "computeShader");
-		//LOG.addToLog("g_pBuf0->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof(\"Buffer0\") - 1, \"Buffer0\");: " + std::system_category().message(m_Device->GetDeviceRemovedReason()), "computeShader");
+		//LOG.addToLog("g_pBuf0->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof(\"Buffer0\") - 1, \"Buffer0\");: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 		InputDataBuffer_CS->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Buffer1") - 1, "Buffer1");
 		resultBuffer_CS->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Result") - 1, "Result");
 		// DEBUG
 
-		CreateBufferSRV(m_Device, allPointsDataBuffer_CS, &inputPoints_CS_SRV);
-		CreateBufferSRV(m_Device, InputDataBuffer_CS, &InputData_CS_SRV);
-		CreateBufferUAV(m_Device, resultBuffer_CS, &result_CS_UAV);
-		CreateBufferSRV(m_Device, resultBuffer_CS, &result_CS_SRV);
-		CreateBufferUAV(m_Device, resultBufferSecond_CS, &resultSecond_CS_UAV);
-		CreateBufferSRV(m_Device, resultBufferSecond_CS, &resultSecond_CS_SRV);
+		CreateBufferSRV(GPU.getDevice(), allPointsDataBuffer_CS, &inputPoints_CS_SRV);
+		CreateBufferSRV(GPU.getDevice(), InputDataBuffer_CS, &InputData_CS_SRV);
+		CreateBufferUAV(GPU.getDevice(), resultBuffer_CS, &result_CS_UAV);
+		CreateBufferSRV(GPU.getDevice(), resultBuffer_CS, &result_CS_SRV);
+		CreateBufferUAV(GPU.getDevice(), resultBufferSecond_CS, &resultSecond_CS_UAV);
+		CreateBufferSRV(GPU.getDevice(), resultBufferSecond_CS, &resultSecond_CS_SRV);
 		current_CS_UAV = &result_CS_UAV;
 		current_CS_SRV = &result_CS_SRV;
 
@@ -2414,7 +2418,7 @@ void runMyComputeShader()
 
 	if (false)
 	{
-		ID3D11Buffer* debugbuf = CreateAndCopyToDebugBuf(m_Device, ctx, resultBuffer_CS);
+		ID3D11Buffer* debugbuf = CreateAndCopyToDebugBuf(GPU.getDevice(), ctx, resultBuffer_CS);
 		D3D11_MAPPED_SUBRESOURCE MappedResource;
 		MeshVertex* p;
 		ctx->Map(debugbuf, 0, D3D11_MAP_READ, 0, &MappedResource);
@@ -2485,7 +2489,7 @@ void runMyComputeShader()
 		ctx->Unmap(debugbuf, 0);
 	}
 
-	//LOG.addToLog("runMyComputeShader()_END: " + std::system_category().message(m_Device->GetDeviceRemovedReason()), "computeShader");
+	//LOG.addToLog("runMyComputeShader()_END: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 }
 
 void runMyDeleteComputeShader()
@@ -2495,10 +2499,10 @@ void runMyDeleteComputeShader()
 	if (pointClouds.size() == 0 || !pointClouds[0]->wasFullyLoaded)
 		return;
 
-	//LOG.addToLog("runMyDeleteComputeShader()_START: " + std::system_category().message(m_Device->GetDeviceRemovedReason()), "computeShader");
+	//LOG.addToLog("runMyDeleteComputeShader()_START: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 
 	ID3D11DeviceContext* ctx = NULL;
-	m_Device->GetImmediateContext(&ctx);
+	GPU.getDevice()->GetImmediateContext(&ctx);
 
 	if (inputPoints_CS_SRV == nullptr)
 	{
@@ -2517,25 +2521,25 @@ void runMyDeleteComputeShader()
 		descBuffer.StructureByteStride = sizeof(MeshVertex);
 		D3D11_SUBRESOURCE_DATA InitData;
 		InitData.pSysMem = &allPointsData_CS[0];
-		auto result = m_Device->CreateBuffer(&descBuffer, &InitData, &allPointsDataBuffer_CS);
+		auto result = GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &allPointsDataBuffer_CS);
 
 		InitData.pSysMem = &InputData_CS[0];
 		descBuffer.ByteWidth = sizeof(float) * 24;
 		descBuffer.StructureByteStride = sizeof(float);
 
-		result = m_Device->CreateBuffer(&descBuffer, &InitData, &InputDataBuffer_CS);
+		result = GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &InputDataBuffer_CS);
 		descBuffer.ByteWidth = sizeof(MeshVertex) * pointClouds[0]->vertexInfo.size();
 		descBuffer.StructureByteStride = sizeof(MeshVertex);
-		result = m_Device->CreateBuffer(&descBuffer, nullptr, &resultBuffer_CS);
-		result = m_Device->CreateBuffer(&descBuffer, nullptr, &resultBufferSecond_CS);
+		result = GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &resultBuffer_CS);
+		result = GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &resultBufferSecond_CS);
 		currentBuffer_CS = &resultBuffer_CS;
 
-		CreateBufferSRV(m_Device, allPointsDataBuffer_CS, &inputPoints_CS_SRV);
-		CreateBufferSRV(m_Device, InputDataBuffer_CS, &InputData_CS_SRV);
-		CreateBufferUAV(m_Device, resultBuffer_CS, &result_CS_UAV);
-		CreateBufferSRV(m_Device, resultBuffer_CS, &result_CS_SRV);
-		CreateBufferUAV(m_Device, resultBufferSecond_CS, &resultSecond_CS_UAV);
-		CreateBufferSRV(m_Device, resultBufferSecond_CS, &resultSecond_CS_SRV);
+		CreateBufferSRV(GPU.getDevice(), allPointsDataBuffer_CS, &inputPoints_CS_SRV);
+		CreateBufferSRV(GPU.getDevice(), InputDataBuffer_CS, &InputData_CS_SRV);
+		CreateBufferUAV(GPU.getDevice(), resultBuffer_CS, &result_CS_UAV);
+		CreateBufferSRV(GPU.getDevice(), resultBuffer_CS, &result_CS_SRV);
+		CreateBufferUAV(GPU.getDevice(), resultBufferSecond_CS, &resultSecond_CS_UAV);
+		CreateBufferSRV(GPU.getDevice(), resultBufferSecond_CS, &resultSecond_CS_SRV);
 		current_CS_UAV = &result_CS_UAV;
 		current_CS_SRV = &result_CS_SRV;
 

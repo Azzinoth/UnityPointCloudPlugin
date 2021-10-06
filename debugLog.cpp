@@ -46,3 +46,19 @@ void debugLog::addToLog(std::string logEntry, glm::vec3 vector, std::string topi
 	logEntry += vec3ToString(vector);
 	addToLog(logEntry, topic);
 }
+
+DX11GPU* DX11GPU::_instance = nullptr;
+
+DX11GPU::DX11GPU() {};
+DX11GPU::~DX11GPU() {};
+
+ID3D11Device* DX11GPU::getDevice()
+{
+	return m_Device;
+}
+
+void DX11GPU::initialize(IUnityInterfaces* interfaces)
+{
+	IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
+	m_Device = d3d->GetDevice();
+}

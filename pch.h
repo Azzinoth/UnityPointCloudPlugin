@@ -1,16 +1,10 @@
 #ifndef PCH_H
 #define PCH_H
 
-#include "loadManager.h"
+#include "undoManager.h"
 
 #include "framework.h"
 #include <iostream>
-
-#include "computeShader.h"
-
-#include "Unity/IUnityGraphicsD3D11.h"
-#include "Unity/IUnityInterface.h"
-#include "Unity/IUnityGraphics.h"
 
 #include "comdef.h"
 

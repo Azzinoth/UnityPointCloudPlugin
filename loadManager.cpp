@@ -584,14 +584,19 @@ void LoadManager::loadFunc()
 				}
 			}
 
-			// saving original colors
-			currentPointCloud->pointsOriginalColor.resize(currentPointCloud->getPointCount());
-			for (size_t i = 0; i < currentPointCloud->pointsOriginalColor.size(); i++)
-			{
-				currentPointCloud->pointsOriginalColor[i].r = currentPointCloud->vertexInfo[i].color[0];
-				currentPointCloud->pointsOriginalColor[i].g = currentPointCloud->vertexInfo[i].color[1];
-				currentPointCloud->pointsOriginalColor[i].b = currentPointCloud->vertexInfo[i].color[2];
-			}
+			// saving original data
+			currentPointCloud->originalData = currentPointCloud->vertexInfo;
+			//currentPointCloud->originalData.resize(currentPointCloud->getPointCount());
+			//for (size_t i = 0; i < currentPointCloud->originalData.size(); i++)
+			//{
+			//	currentPointCloud->originalData[i] = currentPointCloud->vertexInfo[i];
+			//	/*currentPointCloud->originalData[i].color[1] = currentPointCloud->vertexInfo[i].color[1];
+			//	currentPointCloud->originalData[i].color[2] = currentPointCloud->vertexInfo[i].color[2];
+
+			//	currentPointCloud->originalData[i].color[0] = currentPointCloud->vertexInfo[i].color[0];
+			//	currentPointCloud->originalData[i].color[1] = currentPointCloud->vertexInfo[i].color[1];
+			//	currentPointCloud->originalData[i].color[2] = currentPointCloud->vertexInfo[i].color[2];*/
+			//}
 
 			debugLog::getInstance().addToLog("before initializeOctree", "testThread");
 			debugLog::getInstance().addToLog("rangeXYZ: ", glm::vec3(rangeX, rangeY, rangeZ), "OctreeEvents");
