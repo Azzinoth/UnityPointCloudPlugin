@@ -26,7 +26,8 @@ public:
 	void setPointCloud(pointCloud* currentPointCloud);
 	void addDeleteAction(glm::vec3 center, float radius);
 
-	void undo();
+	void undo(int actionsToUndo = 1);
+	void clear();
 private:
 	SINGLETON_PRIVATE_PART(undoManager)
 

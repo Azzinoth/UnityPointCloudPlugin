@@ -1,13 +1,11 @@
 #pragma once
 
-#include "debugLog.h"
+#include "computeShader.h"
 #include "Octree.h"
 #include <thread>
 #include "thirdparty/laszip/include/laszip_api.h"
 
 #define DELETED_POINTS_COORDINATE -10000.0f
-
-//static ID3D11Device* m_Device;
 
 class pointCloud;
 struct LAZFileInfo
@@ -70,6 +68,8 @@ public:
 	double initialXShift;
 	double initialZShift;
 
+	std::vector<int> lastOutliers;
+
 	pointCloud()
 	{
 		mainVB = nullptr;
@@ -130,8 +130,6 @@ public:
 		return originalSearchOctree;
 	}*/
 };
-
-class pointCloud;
 
 class LoadManager
 {

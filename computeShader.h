@@ -1,13 +1,5 @@
 #pragma once
 
-#include <d3d11.h>
-#include <d3dcompiler.h>
-#pragma comment(lib,"d3dcompiler.lib")
-#pragma comment(lib, "dxguid.lib") // WKPDID_D3DDebugObjectName
-
-#include <string>
-#include <system_error>
-
 #include "debugLog.h"
 
 const BYTE g_CSMain_[] =
@@ -263,10 +255,126 @@ void compileAndCreateComputeShader(ID3D11Device* pDevice, std::string sourceFile
 void compileAndCreateComputeShader(ID3D11Device* pDevice, BYTE* source, ID3D11ComputeShader** computeShader);
 int getComputeShaderResultCounter(ID3D11Device* pDevice, ID3D11UnorderedAccessView* result_UAV);
 
+ID3D11Buffer* CreateAndCopyToDebugBuf(ID3D11Device* pDevice, ID3D11DeviceContext* pd3dImmediateContext, ID3D11Buffer* pBuffer);
+
 class computeShaderWrapper
 {
 	ID3D11Device* device;
 	ID3D11ComputeShader* shader;
 
 	computeShaderWrapper(ID3D11Device* pDevice, std::string sourceFile);
+};
+
+class CShader
+{
+public:
+	ID3D11ComputeShader* shader;
+	std::vector<ID3D11Buffer*> buffers;
+	std::vector<ID3D11ShaderResourceView*> SRVs;
+	std::vector<ID3D11UnorderedAccessView*> UAVs;
+
+	CShader(std::string sourceFile)
+	{
+		compileAndCreateComputeShader(GPU.getDevice(), sourceFile, &shader);
+	}
+
+	void addBuffer(size_t byteSizeOfOneElement, size_t elementsCount, void* data)
+	{
+		buffers.resize(buffers.size() + 1);
+
+		D3D11_BUFFER_DESC descBuffer = {};
+		descBuffer.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+		descBuffer.ByteWidth = UINT(byteSizeOfOneElement * elementsCount);
+		descBuffer.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+		descBuffer.StructureByteStride = UINT(byteSizeOfOneElement);
+		if (data == nullptr)
+		{
+			GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &buffers[buffers.size() - 1]);
+		}
+		else
+		{
+			D3D11_SUBRESOURCE_DATA InitData;
+			InitData.pSysMem = data;
+			GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &buffers[buffers.size() - 1]);
+		}
+	}
+
+	size_t addBufferSRV(ID3D11Buffer* buffer)
+	{
+		SRVs.resize(SRVs.size() + 1);
+
+		D3D11_BUFFER_DESC descBuf = {};
+		buffer->GetDesc(&descBuf);
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC desc = {};
+		desc.ViewDimension = D3D11_SRV_DIMENSION_BUFFEREX;
+		desc.BufferEx.FirstElement = 0;
+		desc.Format = DXGI_FORMAT_UNKNOWN;
+		desc.BufferEx.NumElements = descBuf.ByteWidth / descBuf.StructureByteStride;
+
+		GPU.getDevice()->CreateShaderResourceView(buffer, &desc, &SRVs[SRVs.size() - 1]);
+
+		return SRVs.size() - 1;
+	}
+
+	size_t addBufferUAV(ID3D11Buffer* buffer)
+	{
+		UAVs.resize(UAVs.size() + 1);
+
+		D3D11_BUFFER_DESC descBuf = {};
+		buffer->GetDesc(&descBuf);
+
+		D3D11_UNORDERED_ACCESS_VIEW_DESC desc = {};
+		desc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+		desc.Buffer.FirstElement = 0;
+
+		desc.Format = DXGI_FORMAT_UNKNOWN;
+		desc.Buffer.NumElements = descBuf.ByteWidth / descBuf.StructureByteStride;
+		desc.Buffer.Flags = D3D11_BUFFER_UAV_FLAG_APPEND;
+
+		GPU.getDevice()->CreateUnorderedAccessView(buffer, &desc, &UAVs[UAVs.size() - 1]);
+
+		return UAVs.size() - 1;
+	}
+
+	void run(UINT X, UINT Y, UINT Z)
+	{
+		ID3D11DeviceContext* ctx = NULL;
+		GPU.getDevice()->GetImmediateContext(&ctx);
+
+		ctx->CSSetShader(shader, nullptr, 0);
+		ctx->CSSetShaderResources(0, UINT(SRVs.size()), SRVs.data());
+		const UINT zero = 0;
+		ctx->CSSetUnorderedAccessViews(0, UINT(UAVs.size()), UAVs.data(), &zero);
+		
+		ctx->Dispatch(X, Y, Z);
+
+		ctx->CSSetShader(nullptr, nullptr, 0);
+
+		ID3D11UnorderedAccessView* ppUAViewnullptr[1] = { nullptr };
+		ctx->CSSetUnorderedAccessViews(0, 1, ppUAViewnullptr, nullptr);
+
+		ID3D11ShaderResourceView* ppSRVnullptr[2] = { nullptr, nullptr };
+		ctx->CSSetShaderResources(0, 2, ppSRVnullptr);
+	}
+
+	void* beginReadingBufferData(ID3D11Buffer* buffer)
+	{
+		ID3D11DeviceContext* ctx = NULL;
+		GPU.getDevice()->GetImmediateContext(&ctx);
+
+		ID3D11Buffer* debugbuf = CreateAndCopyToDebugBuf(GPU.getDevice(), ctx, buffer);
+		D3D11_MAPPED_SUBRESOURCE MappedResource;
+		ctx->Map(debugbuf, 0, D3D11_MAP_READ, 0, &MappedResource);
+
+		return MappedResource.pData;
+	}
+
+	void endReadingBufferData(ID3D11Buffer* buffer)
+	{
+		ID3D11DeviceContext* ctx = NULL;
+		GPU.getDevice()->GetImmediateContext(&ctx);
+
+		ctx->Unmap(buffer, 0);
+	}
 };

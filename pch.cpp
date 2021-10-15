@@ -46,6 +46,12 @@ MeshVertex* allPointsData_CS;
 	void runMyDeleteComputeShader();
 #endif
 
+CShader* outliers_CS = nullptr;
+//ID3D11ComputeShader* outliers_CS = nullptr;
+//ID3D11Buffer* outliersBuffer_CS = nullptr;
+//ID3D11ShaderResourceView* outliers_CS_SRV = nullptr;
+//ID3D11UnorderedAccessView* outliers_result_CS_UAV = nullptr;
+
 static float testLevel = -830.0f;
 static float** testFrustum = nullptr;
 
@@ -763,6 +769,8 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 	// Call for thread initialization.
 	LoadManager::getInstance();
 
+	UNDO_MANAGER.clear();
+
 	for (size_t i = 0; i < pointClouds.size(); i++)
 	{
 		delete pointClouds[i];
@@ -957,7 +965,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SaveToOwnFormatFileFr
 }
 
 static bool deletionOccuredThisFrame = false;
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUnity(float* center, float size)
+extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUnity(float* center, float size)
 {
 #ifdef USE_COMPUTE_SHADER
 	deletionSpherePosition = glm::vec3(center[0], center[1], center[2]);
@@ -968,6 +976,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUn
 #else
 	//DWORD time = GetTickCount();
 
+	bool anyPointWasDeleted = false;
 	glm::vec3 centerOfBrush = glm::vec3(center[0], center[1], center[2]);
 
 	for (size_t i = 0; i < pointClouds.size(); i++)
@@ -981,20 +990,26 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUn
 
 		if (pointClouds[i]->getSearchOctree()->isInOctreeBound(localPosition, size))
 		{
-			UNDO_MANAGER.setPointCloud(pointClouds[i]);
-			UNDO_MANAGER.addDeleteAction(localPosition, size);
+			//UNDO_MANAGER.setPointCloud(pointClouds[i]);
+			//UNDO_MANAGER.addDeleteAction(localPosition, size);
 			pointClouds[i]->getSearchOctree()->deleteObjects(localPosition, size);
 		}
 
 		if (pointClouds[i]->getSearchOctree()->pointsToDelete.size() > 0)
 		{
+			UNDO_MANAGER.setPointCloud(pointClouds[i]);
+			UNDO_MANAGER.addDeleteAction(localPosition, size);
+
 			LOG.addToLog("==============================================================", "deleteEvents");
 			LOG.addToLog("Brush location: ", localPosition, "deleteEvents");
 			LOG.addToLog("Brush size: " + std::to_string(size), "deleteEvents");
 			LOG.addToLog("pointsToDelete size: " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
+
+			anyPointWasDeleted = true;
 		}
 	}
 
+	return anyPointWasDeleted;
 	/*DWORD timeSpent = GetTickCount() - time;
 	std::fstream testFile;
 	std::string text = std::to_string(timeSpent);
@@ -1095,25 +1110,6 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 	s_Graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
 }
 
-ID3D11Buffer* CreateAndCopyToDebugBuf(ID3D11Device* pDevice, ID3D11DeviceContext* pd3dImmediateContext, ID3D11Buffer* pBuffer)
-{
-	ID3D11Buffer* debugbuf = nullptr;
-
-	D3D11_BUFFER_DESC desc = {};
-	pBuffer->GetDesc(&desc);
-	desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	desc.Usage = D3D11_USAGE_STAGING;
-	desc.BindFlags = 0;
-	desc.MiscFlags = 0;
-	if (SUCCEEDED(pDevice->CreateBuffer(&desc, nullptr, &debugbuf)))
-	{
-		debugbuf->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Debug") - 1, "Debug");
-		pd3dImmediateContext->CopyResource(debugbuf, pBuffer);
-	}
-
-	return debugbuf;
-}
-
 static void CreateResources()
 {
 	D3D11_BUFFER_DESC desc;
@@ -1194,6 +1190,9 @@ static void CreateResources()
 	//"C:/Users/kberegovyi/Downloads/ARNav2_compute_08.16.2021/Assets/Plugins/PointCloudPlugin/computeShader_DELETE.hlsl"
 	
 	compileAndCreateComputeShader(GPU.getDevice(), (BYTE*)g_CSMain, &computeShader);
+
+	outliers_CS = new CShader("C:/Users/kandr/OneDrive/University/ocean_lab/PointCloudPlugin/shaders/computeShader_Outliers.hlsl");
+	//compileAndCreateComputeShader(GPU.getDevice(), "C:/Users/kberegovyi/Downloads/ARNav2_compute_08.16.2021/Assets/Plugins/PointCloudPlugin/computeShader_Outliers.hlsl", &outliers_CS);
 }
 
 const int kVertexSize = 12 + 4;
@@ -2145,7 +2144,7 @@ glm::vec3 getClosestPoint(int pointCloudIndex, glm::vec3 referencePoint)
 	return closestPoint;
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API DeleteOutliers(int pointCloudIndex, float outliersRange)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API DeleteOutliers_OLD(int pointCloudIndex, float outliersRange)
 {
 	if (pointCloudIndex >= pointClouds.size() || pointCloudIndex < 0)
 		return;
@@ -2563,4 +2562,101 @@ void runMyDeleteComputeShader()
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API setTestLevel(float unityTestLevel)
 {
 	testLevel = unityTestLevel;
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API highlightOutliers(float discardDistance, int minNeighborsInRange)
+{
+	if (pointClouds.size() == 0 || !pointClouds[0]->wasFullyLoaded)
+		return;
+
+
+	//if (outliers_CS->buffers.size() == 0)
+	//{
+	//	outliers_CS->addBuffer(sizeof(MeshVertex), pointClouds[0]->getPointCount(), pointClouds[0]->vertexInfo.data());
+	//	outliers_CS->addBuffer(sizeof(unsigned int), pointClouds[0]->getPointCount(), nullptr);
+
+	//	outliers_CS->addBufferSRV(outliers_CS->buffers[0]);
+	//	outliers_CS->addBufferUAV(outliers_CS->buffers[1]);
+	//}
+
+	//outliers_CS->run(UINT(ceil(pointClouds[0]->getPointCount() / 64.0f)), 1, 1);
+
+	//unsigned int* result = (unsigned int*)outliers_CS->beginReadingBufferData(outliers_CS->buffers[1]);
+
+	//for (int i = 0; i < 100; i++)
+	//{
+	//	LOG.addToLog("result[" + std::to_string(i) + "] - X: " + std::to_string(result[i]), "computeShader");
+	//	//LOG.addToLog("result[" + std::to_string(i) + "] - R: " + std::to_string(p[i].color[0]) + " G : " + std::to_string(p[i].color[1]) + " B : " + std::to_string(p[i].color[2]), "computeShader");
+	//}
+
+	//outliers_CS->endReadingBufferData(outliers_CS->buffers[1]);
+
+	pointClouds[0]->lastOutliers.clear();
+	for (size_t i = 0; i < pointClouds[0]->vertexInfo.size(); i++)
+	{
+		float distance = FLT_MAX;
+		// We relay on fact that points are somewhat sorted by their position in an array.
+		int localNeighbors = 0;
+		for (size_t j = i - 10; j < i + 10; j++)
+		{
+			if (j < 0 || j >= pointClouds[0]->vertexInfo.size() || j == i)
+				continue;
+
+			distance = glm::length(pointClouds[0]->vertexInfo[i].position - pointClouds[0]->vertexInfo[j].position);
+			if (distance < discardDistance)
+			{
+				localNeighbors++;
+				if (localNeighbors >= minNeighborsInRange)
+					break;
+			}
+		}
+
+		if (localNeighbors < minNeighborsInRange)
+		{
+			distance = pointClouds[0]->getSearchOctree()->closestPointDistance(pointClouds[0]->vertexInfo[i].position, discardDistance, minNeighborsInRange);
+
+			if (distance > discardDistance)
+			{
+				pointClouds[0]->vertexInfo[i].color[0] = 255;
+				pointClouds[0]->vertexInfo[i].color[1] = 0;
+				pointClouds[0]->vertexInfo[i].color[2] = 0;
+				pointClouds[0]->vertexInfo[i].color[3] = 255;
+
+				pointClouds[0]->lastOutliers.push_back(i);
+			}
+			else
+			{
+				pointClouds[0]->vertexInfo[i].color[0] = pointClouds[0]->originalData[i].color[0];
+				pointClouds[0]->vertexInfo[i].color[1] = pointClouds[0]->originalData[i].color[1];
+				pointClouds[0]->vertexInfo[i].color[2] = pointClouds[0]->originalData[i].color[2];
+				pointClouds[0]->vertexInfo[i].color[3] = pointClouds[0]->originalData[i].color[3];
+			}
+		}
+		else
+		{
+			pointClouds[0]->vertexInfo[i].color[0] = pointClouds[0]->originalData[i].color[0];
+			pointClouds[0]->vertexInfo[i].color[1] = pointClouds[0]->originalData[i].color[1];
+			pointClouds[0]->vertexInfo[i].color[2] = pointClouds[0]->originalData[i].color[2];
+			pointClouds[0]->vertexInfo[i].color[3] = pointClouds[0]->originalData[i].color[3];
+		}
+	}
+
+	// Update GPU buffer.
+	const int kVertexSize = 12 + 4;
+	ID3D11DeviceContext* ctx = NULL;
+
+	if (GPU.getDevice() != nullptr)
+		GPU.getDevice()->GetImmediateContext(&ctx);
+
+	//ctx->UpdateSubresource(pointClouds[0]->mainVB, 0, NULL, pointClouds[0]->originalData.data(), pointClouds[0]->getPointCount() * kVertexSize, pointClouds[0]->getPointCount() * kVertexSize);
+	ctx->UpdateSubresource(pointClouds[0]->mainVB, 0, NULL, pointClouds[0]->vertexInfo.data(), pointClouds[0]->getPointCount() * kVertexSize, pointClouds[0]->getPointCount() * kVertexSize);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API deleteOutliers()
+{
+	if (pointClouds.size() == 0 || !pointClouds[0]->wasFullyLoaded)
+		return;
+
+	pointClouds[0]->getSearchOctree()->pointsToDelete = pointClouds[0]->lastOutliers;
+	pointClouds[0]->lastOutliers.clear();
 }

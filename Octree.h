@@ -171,7 +171,7 @@ public:
 #ifdef FULL_LOGGING
         //debugLog::getInstance().addToLog("8 nodes added. In total: " + std::to_string(debugNodeCount), "OctreeEvents");
 #endif
-        childs = new octreeNode*[8];
+        childs = new octreeNode * [8];
 
         // upper top left
         childs[0] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, size / 4.0f, -size / 4.0f), depth + 1);
@@ -251,6 +251,39 @@ public:
         }
 
         return false;
+    }
+
+    octreeNode* getNodeContaining(glm::vec3 point)
+    {
+        bool instersect = true;
+        if (point.x < nodeAABB.min[0] - 0.01f || point.x > nodeAABB.max[0] + 0.01f) instersect = false;
+        if (point.y < nodeAABB.min[1] - 0.01f || point.y > nodeAABB.max[1] + 0.01f) instersect = false;
+        if (point.z < nodeAABB.min[2] - 0.01f || point.z > nodeAABB.max[2] + 0.01f) instersect = false;
+
+        if (instersect)
+        {
+            for (size_t i = 0; i < objects.size(); i++)
+            {
+                if (objects[i].position.x == point.x &&
+                    objects[i].position.y == point.y &&
+                    objects[i].position.z == point.z)
+                    return this;
+            }
+
+            if (childs != nullptr)
+            {
+                for (int i = 0; i < 8; i++)
+                {
+                    octreeNode* result = nullptr;
+                    result = childs[i]->getNodeContaining(point);
+
+                    if (result != nullptr)
+                        return result;
+                }
+            }
+        }
+
+        return nullptr;
     }
 
     void searchForObjects(glm::vec3& Center, float Radius, std::vector<int>& foundObjects)
@@ -417,10 +450,10 @@ public:
 
     bool addObject(MeshVertex vertex, int index)
     {
-//#ifdef FULL_LOGGING
-//        debugLog::getInstance().addToLog("point to add: ", vertex.position, "OctreeEvents");
-//#endif
-        
+        //#ifdef FULL_LOGGING
+        //        debugLog::getInstance().addToLog("point to add: ", vertex.position, "OctreeEvents");
+        //#endif
+
         return root->addObject(octreeSearchInfo(vertex, index));
     }
 
@@ -481,7 +514,7 @@ public:
             debugLog::getInstance().addToLog("========= END OF isInOctreeBound EVENT =========", "OctreeEvents");
             return false;
         }
-        
+
         debugLog::getInstance().addToLog("Result: true", "OctreeEvents");
         debugLog::getInstance().addToLog("========= END OF isInOctreeBound EVENT =========", "OctreeEvents");
         return true;
@@ -509,8 +542,88 @@ public:
             debugLog::getInstance().addToLog("Time spent on isAtleastOnePointInSphere: " + std::to_string(GetTickCount() - time) + " ms", "isAtleastOnePointInSphere");
             debugLog::getInstance().addToLog("bool isAtleastOnePointInSphereResult: " + std::to_string(isAtleastOnePointInSphereResult), "isAtleastOnePointInSphere");
             debugLog::getInstance().addToLog("===============================", "isAtleastOnePointInSphere");*/
-        //}
+            //}
 
         return isAtleastOnePointInSphereResult;
+    }
+
+    glm::vec3* closestPointInNode(octreeNode* node, glm::vec3& referencePoint, int& neighborsInRangeCount, float discardDistance, int minNeighborsInRange)
+    {
+        glm::vec3* result = nullptr;
+
+        float minDistance = FLT_MAX;
+        for (size_t i = 0; i < node->objects.size(); i++)
+        {
+            if (node->objects[i].position.x == referencePoint.x &&
+                node->objects[i].position.y == referencePoint.y &&
+                node->objects[i].position.z == referencePoint.z)
+                continue;
+
+            float distance = glm::distance(node->objects[i].position, referencePoint);
+            if (distance < minDistance)
+            {
+                minDistance = distance;
+                result = &node->objects[i].position;
+
+                if (distance < discardDistance)
+                {
+                    neighborsInRangeCount++;
+                    if (neighborsInRangeCount >= minNeighborsInRange)
+                        return result;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    float closestPointDistance(glm::vec3& referencePoint, float discardDistance, int minNeighborsInRange)
+    {
+        int neighborsInRangeCount = 0;
+        int arrayIndex = 0;
+        glm::vec3 closestPoint;
+
+        octreeNode* node = root->getNodeContaining(referencePoint);
+        if (node == nullptr)
+        {
+            return FLT_MAX;
+        }
+
+        glm::vec3* closestPoints[10];
+        for (size_t i = 0; i < 10; i++)
+        {
+            closestPoints[i] = nullptr;
+        }
+
+        glm::vec3* ptr = closestPointInNode(node, referencePoint, neighborsInRangeCount, discardDistance, minNeighborsInRange);
+        closestPoints[arrayIndex++] = ptr;
+
+        if (node->parent != nullptr)
+        {
+            ptr = closestPointInNode(node->parent, referencePoint, neighborsInRangeCount, discardDistance, minNeighborsInRange);
+            closestPoints[arrayIndex++] = ptr;
+
+            for (size_t i = 0; i < 8; i++)
+            {
+                glm::vec3* ptr = closestPointInNode(node->parent->childs[i], referencePoint, neighborsInRangeCount, discardDistance, minNeighborsInRange);
+                closestPoints[arrayIndex++] = ptr;
+            }
+        }
+
+        float minDistance = FLT_MAX;
+        for (size_t i = 0; i < 10; i++)
+        {
+            if (closestPoints[i] == nullptr)
+                continue;
+
+            float distance = glm::distance(*closestPoints[i], referencePoint);
+            if (distance < minDistance && neighborsInRangeCount >= minNeighborsInRange)
+            {
+                minDistance = distance;
+                closestPoint = *closestPoints[i];
+            }
+        }
+
+        return minDistance;
     }
 };

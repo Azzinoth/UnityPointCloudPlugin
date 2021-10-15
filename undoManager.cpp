@@ -11,17 +11,17 @@ undoManager::~undoManager()
 {
 }
 
-static bool firstTime = true;
+//static bool firstTime = true;
 void undoManager::setPointCloud(pointCloud* currentPointCloud)
 {
 	if (currentPointCloud == nullptr)
 		return;
 
-	if (firstTime)
-	{
+	//if (firstTime)
+	//{
 		this->currentPointCloud = currentPointCloud;
-		firstTime = false;
-	}
+		//firstTime = false;
+	//}
 }
 
 void undoManager::addDeleteAction(glm::vec3 center, float radius)
@@ -30,9 +30,9 @@ void undoManager::addDeleteAction(glm::vec3 center, float radius)
 	undoActions.push_back(deleteAction(center, radius));
 }
 
-void undoManager::undo()
+void undoManager::undo(int actionsToUndo)
 {
-	if (currentPointCloud == nullptr || undoActions.size() == 0)
+	if (currentPointCloud == nullptr || undoActions.size() == 0 || actionsToUndo < 0 || actionsToUndo > undoActions.size())
 		return;
 
 	LOG.addToLog("==============================================================", "undoActions");
@@ -40,9 +40,13 @@ void undoManager::undo()
 	std::vector<MeshVertex> copyOfOriginalData = currentPointCloud->originalData;
 	// Apply all actions to it except last one that we want to cancel.
 	LOG.addToLog("undoActions.size(): " + std::to_string(undoActions.size()), "undoActions");
-	undoActions.pop_back();
+	LOG.addToLog("actionsToUndo: " + std::to_string(actionsToUndo), "undoActions");
+
+	for (size_t i = 0; i < actionsToUndo; i++)
+		undoActions.pop_back();
+	
 	LOG.addToLog("undoActions.size() after pop_back: " + std::to_string(undoActions.size()), "undoActions");
-	for (size_t i = 0; i < undoActions.size() /*- 1*/; i++)
+	for (size_t i = 0; i < undoActions.size(); i++)
 	{
 		LOG.addToLog("i: " + std::to_string(i), "undoActions");
 		LOG.addToLog("Brush location: ", undoActions[i].center, "undoActions");
@@ -73,7 +77,13 @@ void undoManager::undo()
 	ctx->UpdateSubresource(currentPointCloud->mainVB, 0, NULL, currentPointCloud->vertexInfo.data(), currentPointCloud->getPointCount() * kVertexSize, currentPointCloud->getPointCount() * kVertexSize);
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API undo()
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API undo(int actionsToUndo)
 {
-	undoManager::getInstance().undo();
+	undoManager::getInstance().undo(actionsToUndo);
+}
+
+void undoManager::clear()
+{
+	currentPointCloud == nullptr;
+	undoActions.clear();
 }

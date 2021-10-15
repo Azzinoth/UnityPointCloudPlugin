@@ -544,13 +544,13 @@ void LoadManager::loadFunc()
 					}
 				}
 
-				currentPointCloud->min.x = newMinX;
-				currentPointCloud->min.y = newMinY;
-				currentPointCloud->min.z = newMinZ;
+				currentPointCloud->min.x = float(newMinX);
+				currentPointCloud->min.y = float(newMinY);
+				currentPointCloud->min.z = float(newMinZ);
 
-				currentPointCloud->max.x = newMaxX;
-				currentPointCloud->max.y = newMaxY;
-				currentPointCloud->max.z = newMaxZ;
+				currentPointCloud->max.x = float(newMaxX);
+				currentPointCloud->max.y = float(newMaxY);
+				currentPointCloud->max.z = float(newMaxZ);
 
 				debugLog::getInstance().addToLog("newMinX: " + std::to_string(newMinX), "File_Load_Log");
 				debugLog::getInstance().addToLog("newMaxX: " + std::to_string(newMaxX), "File_Load_Log");

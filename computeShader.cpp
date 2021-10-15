@@ -182,3 +182,22 @@ computeShaderWrapper::computeShaderWrapper(ID3D11Device* pDevice, std::string so
 	LOG.addToLog("CreateComputeShader result: " + std::system_category().message(shaderResult), "computeShaderWrapper");
 	shaderBlob->Release();
 }
+
+ID3D11Buffer* CreateAndCopyToDebugBuf(ID3D11Device* pDevice, ID3D11DeviceContext* pd3dImmediateContext, ID3D11Buffer* pBuffer)
+{
+	ID3D11Buffer* debugbuf = nullptr;
+
+	D3D11_BUFFER_DESC desc = {};
+	pBuffer->GetDesc(&desc);
+	desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	desc.Usage = D3D11_USAGE_STAGING;
+	desc.BindFlags = 0;
+	desc.MiscFlags = 0;
+	if (SUCCEEDED(pDevice->CreateBuffer(&desc, nullptr, &debugbuf)))
+	{
+		debugbuf->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Debug") - 1, "Debug");
+		pd3dImmediateContext->CopyResource(debugbuf, pBuffer);
+	}
+
+	return debugbuf;
+}
