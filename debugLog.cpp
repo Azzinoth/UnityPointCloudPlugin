@@ -24,7 +24,7 @@ std::string debugLog::vec3ToString(glm::vec3 vector)
 
 void debugLog::addToLog(std::string logEntry, std::string topic)
 {
-	std::fstream* file = nullptr;
+	/*std::fstream* file = nullptr;
 	if (openedFiles.find(topic) != openedFiles.end())
 	{
 		file = openedFiles[topic];
@@ -38,12 +38,29 @@ void debugLog::addToLog(std::string logEntry, std::string topic)
 
 	logEntry += '\n';
 	file->write(logEntry.c_str(), logEntry.size());
-	file->flush();
+	file->flush();*/
 }
 
 void debugLog::addToLog(std::string logEntry, glm::vec3 vector, std::string topic)
 {
 	logEntry += vec3ToString(vector);
+	addToLog(logEntry, topic);
+}
+
+std::string debugLog::mat4ToString(glm::mat4 matrix)
+{
+	string result;
+	result = "\n[ " + std::to_string(matrix[0][0]) + ", " + std::to_string(matrix[0][1]) + ", " + std::to_string(matrix[0][2]) + ", " + std::to_string(matrix[0][3]) + " ]\n";
+	result += "[ " + std::to_string(matrix[1][0]) + ", " + std::to_string(matrix[1][1]) + ", " + std::to_string(matrix[1][2]) + ", " + std::to_string(matrix[1][3]) + " ]\n";
+	result += "[ " + std::to_string(matrix[2][0]) + ", " + std::to_string(matrix[2][1]) + ", " + std::to_string(matrix[2][2]) + ", " + std::to_string(matrix[2][3]) + " ]\n";
+	result += "[ " + std::to_string(matrix[3][0]) + ", " + std::to_string(matrix[3][1]) + ", " + std::to_string(matrix[3][2]) + ", " + std::to_string(matrix[3][3]) + " ]";
+
+	return result;
+}
+
+void debugLog::addToLog(std::string logEntry, glm::mat4 matrix, std::string topic)
+{
+	logEntry += mat4ToString(matrix);
 	addToLog(logEntry, topic);
 }
 

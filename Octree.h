@@ -464,6 +464,7 @@ public:
         deletedCount = 0;
 #endif
         //root->deleteObjects(Center, Radius, this->pointsToDelete);
+        this->pointsToDelete.clear();
         root->searchForObjects(Center, Radius, this->pointsToDelete);
 #ifdef MAIN_EVENTS_LOGGING
         debugLog::getInstance().addToLog("========= BEGIN OF DELETE EVENT =========", "OctreeEvents");

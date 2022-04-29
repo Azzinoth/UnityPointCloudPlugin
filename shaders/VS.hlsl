@@ -15,6 +15,7 @@ struct pointInfo
 };
 
 StructuredBuffer<pointInfo> pointBuffer : register(t0);
+//StructuredBuffer<pointInfo> originalPointBuffer : register(t1); // new
 
 void VS(VS_INPUT input, float3 pos : POSITION, float4 color : COLOR, out float4 ocolor : COLOR, out float4 opos : SV_Position)
 {
@@ -28,6 +29,4 @@ void VS(VS_INPUT input, float3 pos : POSITION, float4 color : COLOR, out float4 
 	ocolor[2] = ((pointBuffer[input.vertexID].color & 0x00ff0000) >> 16) / 255.0f;
 	ocolor[1] = ((pointBuffer[input.vertexID].color & 0x0000ff00) >> 8) / 255.0f;
 	ocolor[0] = (pointBuffer[input.vertexID].color & 0x000000ff) / 255.0f;
-	
-	//discard;
 }

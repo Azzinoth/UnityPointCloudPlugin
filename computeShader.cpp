@@ -35,6 +35,7 @@ HRESULT CreateBufferSRV(ID3D11Device* pDevice, ID3D11Buffer* pBuffer, ID3D11Shad
 	return pDevice->CreateShaderResourceView(pBuffer, &desc, ppSRVOut);
 }
 
+static DWORD timeLastTimeCall = GetTickCount();
 void RunComputeShader(ID3D11DeviceContext* pd3dImmediateContext,
 	ID3D11ComputeShader* pComputeShader,
 	UINT nNumViews, ID3D11ShaderResourceView** pShaderResourceViews,
@@ -42,6 +43,14 @@ void RunComputeShader(ID3D11DeviceContext* pd3dImmediateContext,
 	ID3D11UnorderedAccessView* pUnorderedAccessView,
 	UINT X, UINT Y, UINT Z)
 {
+	if (GetTickCount() - timeLastTimeCall < 20)
+	{
+		//LOG.addToLog("denial RequestToDeleteFromUnity", "deleteEvents");
+		//LOG.addToLog("time: " + std::to_string(GetTickCount() - timeLastTimeCall), "deleteEvents");
+		return;
+	}
+	timeLastTimeCall = GetTickCount();
+
 	pd3dImmediateContext->CSSetShader(pComputeShader, nullptr, 0);
 	pd3dImmediateContext->CSSetShaderResources(0, nNumViews, pShaderResourceViews);
 	const UINT zero = 0;
@@ -72,7 +81,6 @@ void RunComputeShader(ID3D11DeviceContext* pd3dImmediateContext,
 
 void compileAndCreateComputeShader(ID3D11Device* pDevice, BYTE* source, ID3D11ComputeShader** computeShader)
 {
-	//g_CSMain_
 	HRESULT shaderResult = pDevice->CreateComputeShader(g_CSMain_, sizeof(g_CSMain_), nullptr, computeShader);
 	
 	if (FAILED(shaderResult))

@@ -2,7 +2,9 @@
 #include "loadManager.h"
 
 LoadManager* LoadManager::_instance = nullptr;
+#ifdef LOD_SYSTEM
 std::vector<LODSetting> pointCloud::LODSettings = std::vector<LODSetting>();
+#endif
 
 void copyLAZvlr(laszip_header* dest, laszip_vlr_struct source)
 {
@@ -151,15 +153,9 @@ void LoadManager::loadFunc()
 {
 	while (true)
 	{
-		if (currentPath != "")
+		if (currentPath != "" && currentPath.size() > 4 && std::filesystem::exists(currentPath))
 		{
 			newJobReady = false;
-
-			if (currentPath.size() <= 4)
-			{
-				debugLog::getInstance().addToLog("filePath lenght was less then 4", "ERRORS");
-				return;
-			}
 
 			double rangeX = 0.0f;
 			double rangeY = 0.0f;
@@ -174,13 +170,27 @@ void LoadManager::loadFunc()
 
 			LAZFileInfo* fileInfo = nullptr;
 
+			debugLog::getInstance().addToLog("Coping file from original location: " + currentPath, "File_Load_Log");
+			debugLog::getInstance().addToLog("To new location: " + currentProjectPath + "/Resources/CCOM/PointCloud/Data/", "File_Load_Log");
+			
+			std::filesystem::path newLocation = currentProjectPath + "/Resources/CCOM/PointCloud/Data/" + std::filesystem::path(currentPath).filename().string();
+			if (!std::filesystem::exists(newLocation) && std::filesystem::exists(currentProjectPath + "/Resources/CCOM/PointCloud/Data/"))
+			{
+				std::filesystem::copy(currentPath, currentProjectPath + "/Resources/CCOM/PointCloud/Data/" + std::filesystem::path(currentPath).filename().string());
+			}
+			else
+			{
+				newLocation = currentPath;
+			}
+
+			currentPointCloud->filePath = newLocation.string();
+
 			// if file is in our own format
 			if (currentPath[currentPath.size() - 4] == '.' &&
 				currentPath[currentPath.size() - 3] == 'c' &&
 				currentPath[currentPath.size() - 2] == 'p' &&
 				currentPath[currentPath.size() - 1] == 'c')
 			{
-				
 				std::fstream file;
 				file.open(currentPath, std::ios::in | std::ios::binary);
 
@@ -244,12 +254,12 @@ void LoadManager::loadFunc()
 					debugLog::getInstance().addToLog("currentPointCloud = nullptr", "testThread");
 
 				currentPointCloud->vertexInfo.resize(pointCount);
+#ifdef LOD_SYSTEM
 				currentPointCloud->LODs.resize(pointCloud::LODSettings.size());
+#endif
 
-				debugLog::getInstance().addToLog("before file.read(rawPointData, pointCount * sizeof(MeshVertex)); ", "File_Load_Log");
 				char* rawPointData = new char[pointCount * sizeof(MeshVertex)];
 				file.read(rawPointData, pointCount * sizeof(MeshVertex));
-				debugLog::getInstance().addToLog("after file.read(rawPointData, pointCount * sizeof(MeshVertex)); ", "File_Load_Log");
 
 				MeshVertex* temp = (MeshVertex*)rawPointData;
 				for (size_t i = 0; i < pointCount; i++)
@@ -270,6 +280,7 @@ void LoadManager::loadFunc()
 					currentPointCloud->vertexInfo[i].color[1] = (temp + i)->color[1];
 					currentPointCloud->vertexInfo[i].color[2] = (temp + i)->color[2];
 
+#ifdef LOD_SYSTEM
 					for (size_t j = 0; j < pointCloud::LODSettings.size(); j++)
 					{
 						if (i % pointCloud::LODSettings[j].takeEach_Nth_Point == 0)
@@ -283,6 +294,7 @@ void LoadManager::loadFunc()
 							currentPointCloud->LODs[j].vertexInfo.back().color[2] = currentPointCloud->vertexInfo[i].color[2];
 						}
 					}
+#endif
 				}
 			}
 			else
@@ -333,11 +345,17 @@ void LoadManager::loadFunc()
 				if (currentPointCloud == nullptr)
 					debugLog::getInstance().addToLog("currentPointCloud = nullptr", "testThread");
 
+#ifdef USE_QUADS_NOT_POINTS
+				currentPointCloud->vertexInfo.resize(npoints * 6);
+#else
 				currentPointCloud->vertexInfo.resize(npoints);
+				std::vector<glm::dvec3> tempVertex;
+				tempVertex.resize(npoints);
+#endif
 				currentPointCloud->vertexIntensity.resize(npoints);
 
-				currentPointCloud->min = glm::vec3(FLT_MAX);
-				currentPointCloud->max = glm::vec3(-FLT_MAX);
+				currentPointCloud->min = glm::dvec3(DBL_MAX);
+				currentPointCloud->max = glm::dvec3(-DBL_MAX);
 
 				for (size_t i = 0; i < header->number_of_variable_length_records; i++)
 				{
@@ -367,6 +385,50 @@ void LoadManager::loadFunc()
 					}
 				}
 
+				class LASvlr_geo_keys
+				{
+				public:
+					unsigned short key_directory_version;
+					unsigned short key_revision;
+					unsigned short minor_revision;
+					unsigned short number_of_keys;
+				};
+
+				struct GeoProjectionGeoKeys
+				{
+					unsigned short key_id;
+					unsigned short tiff_tag_location;
+					unsigned short count;
+					unsigned short value_offset;
+				};
+
+				for (size_t i = 0; i < header->number_of_variable_length_records; i++)
+				{
+					if (header->vlrs[i].record_id == 34735) // GeoKeyDirectoryTag
+					{
+						LASvlr_geo_keys* read = new LASvlr_geo_keys[1];
+						memcpy_s(read, sizeof(unsigned short) * 4, header->vlrs[i].data, sizeof(unsigned short) * 4);
+
+						GeoProjectionGeoKeys* readKeys = new GeoProjectionGeoKeys[read->number_of_keys];
+						memcpy_s(readKeys, read->number_of_keys * sizeof(GeoProjectionGeoKeys),
+										   header->vlrs[i].data + sizeof(unsigned short) * 4, read->number_of_keys * sizeof(unsigned short) * 4);
+
+						for (int j = 0; j < read->number_of_keys; j++)
+						{
+							if (readKeys[j].key_id != 3072)
+								continue;
+
+							//std::cout << "index: " << j << std::endl;
+							//std::cout << "key_id: " << readKeys[j].key_id << std::endl;
+							//std::cout << "tiff_tag_location: " << readKeys[j].tiff_tag_location << std::endl;
+							//std::cout << "count: " << readKeys[j].count << std::endl;
+							//std::cout << "value_offset: " << readKeys[j].value_offset << std::endl;
+
+							debugLog::getInstance().addToLog("EPSG: " + std::to_string(readKeys[j].value_offset), "EPSG");
+						}
+					}
+				}
+
 				// get a pointer to the points that will be read
 				laszip_point* point;
 				if (laszip_get_point_pointer(laszip_reader, &point))
@@ -375,7 +437,13 @@ void LoadManager::loadFunc()
 					return;
 				}
 
+#ifdef LOD_SYSTEM
 				currentPointCloud->LODs.resize(pointCloud::LODSettings.size());
+#endif
+
+				debugLog::getInstance().addToLog("header->x_scale_factor : " + std::to_string(header->x_scale_factor), "File_Load_Log");
+				debugLog::getInstance().addToLog("header->z_scale_factor : " + std::to_string(header->z_scale_factor), "File_Load_Log");
+				debugLog::getInstance().addToLog("header->y_scale_factor : " + std::to_string(header->y_scale_factor), "File_Load_Log");
 
 				// read the points
 				laszip_U64 p_count = 0;
@@ -394,19 +462,91 @@ void LoadManager::loadFunc()
 					fileInfo->LAZpoints.push_back(laszip_point(*point));
 
 					// point->X -> lonX, point->Y -> latY, point->Z -> depth
-					float readX = float(point->X * header->x_scale_factor);
-					float readY = float(point->Z * header->z_scale_factor);
-					float readZ = float(point->Y * header->y_scale_factor);
+					double readX = point->X * header->x_scale_factor;
+					double readY = point->Z * header->z_scale_factor;
+					double readZ = point->Y * header->y_scale_factor;
 
 					//debugLog::getInstance().addToLog("float readZ : " + std::to_string(p_count), "testThread");
 
-					currentPointCloud->vertexInfo[p_count].position[0] = readX;
-					currentPointCloud->vertexInfo[p_count].position[1] = readY;
-					currentPointCloud->vertexInfo[p_count].position[2] = readZ;
-					currentPointCloud->vertexInfo[p_count].color[0] = byte(point->rgb[0] / float(1 << 16) * 255);
-					currentPointCloud->vertexInfo[p_count].color[1] = byte(point->rgb[1] / float(1 << 16) * 255);
-					currentPointCloud->vertexInfo[p_count].color[2] = byte(point->rgb[2] / float(1 << 16) * 255);
+#ifdef USE_QUADS_NOT_POINTS
+					//currentPointCloud->vertexInfo[p_count].position[0] = readX;
+					//currentPointCloud->vertexInfo[p_count].position[1] = readY;
+					//currentPointCloud->vertexInfo[p_count].position[2] = readZ;
 
+					double quad_size = 2.0;
+					int tempCount = p_count * 6;
+					if (tempCount < currentPointCloud->vertexInfo.size())
+					{
+						currentPointCloud->vertexInfo[tempCount].position[0] = readX + quad_size;
+						currentPointCloud->vertexInfo[tempCount].position[1] = readY + quad_size;
+						currentPointCloud->vertexInfo[tempCount].position[2] = readZ + 0.0f;
+						currentPointCloud->vertexInfo[tempCount].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
+
+						currentPointCloud->vertexInfo[tempCount + 1].position[0] = readX + -quad_size;
+						currentPointCloud->vertexInfo[tempCount + 1].position[1] = readY + quad_size;
+						currentPointCloud->vertexInfo[tempCount + 1].position[2] = readZ + 0.0f;
+						currentPointCloud->vertexInfo[tempCount + 1].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount + 1].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount + 1].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
+
+						currentPointCloud->vertexInfo[tempCount + 2].position[0] = readX + -quad_size;
+						currentPointCloud->vertexInfo[tempCount + 2].position[1] = readY + -quad_size;
+						currentPointCloud->vertexInfo[tempCount + 2].position[2] = readZ + 0.0f;
+						currentPointCloud->vertexInfo[tempCount + 2].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount + 2].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount + 2].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
+
+						currentPointCloud->vertexInfo[tempCount + 3].position[0] = readX + quad_size;
+						currentPointCloud->vertexInfo[tempCount + 3].position[1] = readY + -quad_size;
+						currentPointCloud->vertexInfo[tempCount + 3].position[2] = readZ + 0.0f;
+						currentPointCloud->vertexInfo[tempCount + 3].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount + 3].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount + 3].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
+
+						currentPointCloud->vertexInfo[tempCount + 4].position[0] = readX + -quad_size;
+						currentPointCloud->vertexInfo[tempCount + 4].position[1] = readY + -quad_size;
+						currentPointCloud->vertexInfo[tempCount + 4].position[2] = readZ + 0.0f;
+						currentPointCloud->vertexInfo[tempCount + 4].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount + 4].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount + 4].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
+
+						currentPointCloud->vertexInfo[tempCount + 5].position[0] = readX + quad_size;
+						currentPointCloud->vertexInfo[tempCount + 5].position[1] = readY + quad_size;
+						currentPointCloud->vertexInfo[tempCount + 5].position[2] = readZ + 0.0f;
+						currentPointCloud->vertexInfo[tempCount + 5].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount + 5].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
+						currentPointCloud->vertexInfo[tempCount + 5].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
+					}
+
+#else
+					//currentPointCloud->vertexInfo[p_count].position[0] = readX;
+					//currentPointCloud->vertexInfo[p_count].position[1] = readY;
+					//currentPointCloud->vertexInfo[p_count].position[2] = readZ;
+
+					tempVertex[p_count].x = readX;
+					tempVertex[p_count].y = readY;
+					tempVertex[p_count].z = readZ;
+
+					if (p_count < 1000)
+					{
+						debugLog::getInstance().addToLog("readX : " + std::to_string(readX), "precision");
+						debugLog::getInstance().addToLog("readY : " + std::to_string(readY), "precision");
+						debugLog::getInstance().addToLog("readZ : " + std::to_string(readZ), "precision");
+
+						debugLog::getInstance().addToLog("currentPointCloud->vertexInfo[p_count].position[0] : " + std::to_string(currentPointCloud->vertexInfo[p_count].position[0]), "precision");
+						debugLog::getInstance().addToLog("currentPointCloud->vertexInfo[p_count].position[1] : " + std::to_string(currentPointCloud->vertexInfo[p_count].position[1]), "precision");
+						debugLog::getInstance().addToLog("currentPointCloud->vertexInfo[p_count].position[2] : " + std::to_string(currentPointCloud->vertexInfo[p_count].position[2]), "precision");
+					}
+
+					currentPointCloud->vertexInfo[p_count].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
+					currentPointCloud->vertexInfo[p_count].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
+					currentPointCloud->vertexInfo[p_count].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
+#endif
+
+
+#ifdef LOD_SYSTEM
 					for (size_t i = 0; i < pointCloud::LODSettings.size(); i++)
 					{
 						if (p_count % pointCloud::LODSettings[i].takeEach_Nth_Point == 0)
@@ -420,6 +560,7 @@ void LoadManager::loadFunc()
 							currentPointCloud->LODs[i].vertexInfo.back().color[2] = currentPointCloud->vertexInfo[p_count].color[2];
 						}
 					}
+#endif
 
 					currentPointCloud->vertexIntensity[p_count] = point->intensity;
 					if (maxIntensity < point->intensity)
@@ -452,10 +593,11 @@ void LoadManager::loadFunc()
 				{
 					for (size_t i = 0; i < p_count; i++)
 					{
-						currentPointCloud->vertexInfo[i].color[0] = byte(currentPointCloud->vertexIntensity[i] / maxIntensity * 255);
-						currentPointCloud->vertexInfo[i].color[1] = byte(currentPointCloud->vertexIntensity[i] / maxIntensity * 255);
-						currentPointCloud->vertexInfo[i].color[2] = byte(currentPointCloud->vertexIntensity[i] / maxIntensity * 255);
+						currentPointCloud->vertexInfo[i].color[0] = unsigned char(currentPointCloud->vertexIntensity[i] / maxIntensity * 255);
+						currentPointCloud->vertexInfo[i].color[1] = unsigned char(currentPointCloud->vertexIntensity[i] / maxIntensity * 255);
+						currentPointCloud->vertexInfo[i].color[2] = unsigned char(currentPointCloud->vertexIntensity[i] / maxIntensity * 255);
 
+#ifdef LOD_SYSTEM
 						for (size_t j = 0; j < currentPointCloud->LODs.size(); j++)
 						{
 							if (i % pointCloud::LODSettings[j].takeEach_Nth_Point == 0)
@@ -465,6 +607,8 @@ void LoadManager::loadFunc()
 								currentPointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].color[2] = currentPointCloud->vertexInfo[i].color[2];
 							}
 						}
+#endif
+						
 					}
 				}
 
@@ -473,6 +617,8 @@ void LoadManager::loadFunc()
 
 				if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
 				{
+					debugLog::getInstance().addToLog("header does not contain offset", "File_Load_Log");
+
 					rangeX = currentPointCloud->max.x - currentPointCloud->min.x;
 					rangeY = currentPointCloud->max.y - currentPointCloud->min.y;
 					rangeZ = currentPointCloud->max.z - currentPointCloud->min.z;
@@ -483,13 +629,18 @@ void LoadManager::loadFunc()
 				}
 				else
 				{
+					debugLog::getInstance().addToLog("header contain offset", "File_Load_Log");
+					debugLog::getInstance().addToLog("header->x_offset : " + std::to_string(header->x_offset), "File_Load_Log");
+					debugLog::getInstance().addToLog("header->y_offset : " + std::to_string(header->y_offset), "File_Load_Log");
+					debugLog::getInstance().addToLog("header->z_offset : " + std::to_string(header->z_offset), "File_Load_Log");
+
 					rangeX = currentPointCloud->max.x - currentPointCloud->min.x;
 					rangeY = currentPointCloud->max.y - currentPointCloud->min.y;
 					rangeZ = currentPointCloud->max.z - currentPointCloud->min.z;
 
-					currentPointCloud->adjustment.x = float(-header->x_offset);
-					currentPointCloud->adjustment.y = float(-header->y_offset);
-					currentPointCloud->adjustment.z = float(-header->z_offset);
+					currentPointCloud->adjustment.x = -header->x_offset;
+					currentPointCloud->adjustment.y = -header->y_offset;
+					currentPointCloud->adjustment.z = -header->z_offset;
 				}
 
 				debugLog::getInstance().addToLog("rangeX: " + std::to_string(rangeX), "File_Load_Log");
@@ -504,35 +655,56 @@ void LoadManager::loadFunc()
 				{
 					if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
 					{
-						currentPointCloud->vertexInfo[i].position[0] = currentPointCloud->vertexInfo[i].position[0] + currentPointCloud->adjustment.x;
-						currentPointCloud->vertexInfo[i].position[1] = currentPointCloud->vertexInfo[i].position[1] + currentPointCloud->adjustment.y;
-						currentPointCloud->vertexInfo[i].position[2] = currentPointCloud->vertexInfo[i].position[2] + currentPointCloud->adjustment.z;
+						//currentPointCloud->vertexInfo[i].position[0] = currentPointCloud->vertexInfo[i].position[0] + currentPointCloud->adjustment.x;
+						//currentPointCloud->vertexInfo[i].position[1] = currentPointCloud->vertexInfo[i].position[1] + currentPointCloud->adjustment.y;
+						//currentPointCloud->vertexInfo[i].position[2] = currentPointCloud->vertexInfo[i].position[2] + currentPointCloud->adjustment.z;
+						
+						tempVertex[i].x = tempVertex[i].x + currentPointCloud->adjustment.x;
+						tempVertex[i].y = tempVertex[i].y + currentPointCloud->adjustment.y;
+						tempVertex[i].z = tempVertex[i].z + currentPointCloud->adjustment.z;
 					}
 					else
 					{
-						currentPointCloud->vertexInfo[i].position[0] = currentPointCloud->vertexInfo[i].position[0] + float(currentPointCloud->adjustment.x * header->x_scale_factor);
-						currentPointCloud->vertexInfo[i].position[1] = currentPointCloud->vertexInfo[i].position[1] + float(currentPointCloud->adjustment.y * header->y_scale_factor);
-						currentPointCloud->vertexInfo[i].position[2] = currentPointCloud->vertexInfo[i].position[2] + float(currentPointCloud->adjustment.z * header->z_scale_factor);
+						//currentPointCloud->vertexInfo[i].position[0] = currentPointCloud->vertexInfo[i].position[0] + float(currentPointCloud->adjustment.x * header->x_scale_factor);
+						//currentPointCloud->vertexInfo[i].position[1] = currentPointCloud->vertexInfo[i].position[1] + float(currentPointCloud->adjustment.y * header->y_scale_factor);
+						//currentPointCloud->vertexInfo[i].position[2] = currentPointCloud->vertexInfo[i].position[2] + float(currentPointCloud->adjustment.z * header->z_scale_factor);
+					
+						tempVertex[i].x = tempVertex[i].x + currentPointCloud->adjustment.x * header->x_scale_factor;
+						tempVertex[i].y = tempVertex[i].y + currentPointCloud->adjustment.y * header->y_scale_factor;
+						tempVertex[i].z = tempVertex[i].z + currentPointCloud->adjustment.z * header->z_scale_factor;
 					}
 
-					if (newMinX > currentPointCloud->vertexInfo[i].position[0])
-						newMinX = currentPointCloud->vertexInfo[i].position[0];
+					if (newMinX > tempVertex[i].x)
+						newMinX = tempVertex[i].x;
 
-					if (newMaxX < currentPointCloud->vertexInfo[i].position[0])
-						newMaxX = currentPointCloud->vertexInfo[i].position[0];
+					if (newMaxX < tempVertex[i].x)
+						newMaxX = tempVertex[i].x;
 
-					if (newMinY > currentPointCloud->vertexInfo[i].position[1])
-						newMinY = currentPointCloud->vertexInfo[i].position[1];
+					if (newMinY > tempVertex[i].y)
+						newMinY = tempVertex[i].y;
 
-					if (newMaxY < currentPointCloud->vertexInfo[i].position[1])
-						newMaxY = currentPointCloud->vertexInfo[i].position[1];
+					if (newMaxY < tempVertex[i].y)
+						newMaxY = tempVertex[i].y;
 
-					if (newMinZ > currentPointCloud->vertexInfo[i].position[2])
-						newMinZ = currentPointCloud->vertexInfo[i].position[2];
+					if (newMinZ > tempVertex[i].z)
+						newMinZ = tempVertex[i].z;
 
-					if (newMaxZ < currentPointCloud->vertexInfo[i].position[2])
-						newMaxZ = currentPointCloud->vertexInfo[i].position[2];
+					if (newMaxZ < tempVertex[i].z)
+						newMaxZ = tempVertex[i].z;
 
+
+					currentPointCloud->vertexInfo[i].position[0] = float(tempVertex[i].x);
+					currentPointCloud->vertexInfo[i].position[1] = float(tempVertex[i].y);
+					currentPointCloud->vertexInfo[i].position[2] = float(tempVertex[i].z);
+
+					if (i < 1000)
+					{
+						debugLog::getInstance().addToLog("2) currentPointCloud->vertexInfo[i].position[0] : " + std::to_string(currentPointCloud->vertexInfo[i].position[0]), "precision");
+						debugLog::getInstance().addToLog("2) currentPointCloud->vertexInfo[i].position[1] : " + std::to_string(currentPointCloud->vertexInfo[i].position[1]), "precision");
+						debugLog::getInstance().addToLog("2) currentPointCloud->vertexInfo[i].position[2] : " + std::to_string(currentPointCloud->vertexInfo[i].position[2]), "precision");
+					}
+
+#ifdef LOD_SYSTEM
 					for (size_t j = 0; j < currentPointCloud->LODs.size(); j++)
 					{
 						if (i % pointCloud::LODSettings[j].takeEach_Nth_Point == 0)
@@ -542,15 +714,17 @@ void LoadManager::loadFunc()
 							currentPointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].position[2] = currentPointCloud->vertexInfo[i].position[2];
 						}
 					}
+#endif
+					
 				}
 
-				currentPointCloud->min.x = float(newMinX);
-				currentPointCloud->min.y = float(newMinY);
-				currentPointCloud->min.z = float(newMinZ);
+				currentPointCloud->min.x = newMinX;
+				currentPointCloud->min.y = newMinY;
+				currentPointCloud->min.z = newMinZ;
 
-				currentPointCloud->max.x = float(newMaxX);
-				currentPointCloud->max.y = float(newMaxY);
-				currentPointCloud->max.z = float(newMaxZ);
+				currentPointCloud->max.x = newMaxX;
+				currentPointCloud->max.y = newMaxY;
+				currentPointCloud->max.z = newMaxZ;
 
 				debugLog::getInstance().addToLog("newMinX: " + std::to_string(newMinX), "File_Load_Log");
 				debugLog::getInstance().addToLog("newMaxX: " + std::to_string(newMaxX), "File_Load_Log");
@@ -584,6 +758,32 @@ void LoadManager::loadFunc()
 				}
 			}
 
+//#ifdef USE_QUADS_NOT_POINTS
+//			currentPointCloud->vertexInfo[0].position[0] = 10.0f;
+//			currentPointCloud->vertexInfo[0].position[1] = 10.0f;
+//			currentPointCloud->vertexInfo[0].position[2] = 0.0f;
+//
+//			currentPointCloud->vertexInfo[1].position[0] = -10.0f;
+//			currentPointCloud->vertexInfo[1].position[1] = 10.0f;
+//			currentPointCloud->vertexInfo[1].position[2] = 0.0f;
+//
+//			currentPointCloud->vertexInfo[2].position[0] = -10.0f;
+//			currentPointCloud->vertexInfo[2].position[1] = -10.0f;
+//			currentPointCloud->vertexInfo[2].position[2] = 0.0f;
+//
+//			currentPointCloud->vertexInfo[3].position[0] = 10.0f;
+//			currentPointCloud->vertexInfo[3].position[1] = -10.0f;
+//			currentPointCloud->vertexInfo[3].position[2] = 0.0f;
+//
+//			currentPointCloud->vertexInfo[4].position[0] = -10.0f;
+//			currentPointCloud->vertexInfo[4].position[1] = -10.0f;
+//			currentPointCloud->vertexInfo[4].position[2] = 0.0f;
+//
+//			currentPointCloud->vertexInfo[5].position[0] = 10.0f;
+//			currentPointCloud->vertexInfo[5].position[1] = 10.0f;
+//			currentPointCloud->vertexInfo[5].position[2] = 0.0f;
+//#endif
+
 			// saving original data
 			currentPointCloud->originalData = currentPointCloud->vertexInfo;
 			//currentPointCloud->originalData.resize(currentPointCloud->getPointCount());
@@ -602,10 +802,7 @@ void LoadManager::loadFunc()
 			debugLog::getInstance().addToLog("rangeXYZ: ", glm::vec3(rangeX, rangeY, rangeZ), "OctreeEvents");
 			currentPointCloud->initializeOctree(rangeX, rangeY, rangeZ, glm::vec3(newMinX + rangeX / 2.0f, newMinY + rangeY / 2.0f, newMinZ + rangeZ / 2.0f));
 			debugLog::getInstance().addToLog("after initializeOctree", "testThread");
-			currentPointCloud->loadedFrom = fileInfo;
-			if (currentPointCloud->loadedFrom != nullptr)
-				currentPointCloud->loadedFrom->resultingPointCloud = currentPointCloud;
-
+			
 			debugLog::getInstance().addToLog("Points inserted: " + std::to_string(currentPointCloud->getSearchOctree()->getPointsInserted()), "OctreeEvents");
 			debugLog::getInstance().addToLog("Total nodes created: " + std::to_string(currentPointCloud->getSearchOctree()->getDebugNodeCount()), "OctreeEvents");
 			debugLog::getInstance().addToLog("Rootnode AABB size: " + std::to_string(currentPointCloud->getSearchOctree()->root->nodeAABB.size), "OctreeEvents");
@@ -613,10 +810,22 @@ void LoadManager::loadFunc()
 			debugLog::getInstance().addToLog("Rootnode AABB max: ", currentPointCloud->getSearchOctree()->root->nodeAABB.max, "OctreeEvents");
 			debugLog::getInstance().addToLog("Max depth: " + std::to_string(currentPointCloud->getSearchOctree()->getDebugMaxNodeDepth()), "OctreeEvents");
 
+			currentPointCloud->loadedFrom = fileInfo;
+			if (currentPointCloud->loadedFrom != nullptr)
+				currentPointCloud->loadedFrom->resultingPointCloud = currentPointCloud;
+			
 			currentPath = "";
 			currentPointCloud->wasFullyLoaded = true;
 			currentPointCloud = nullptr;
 			debugLog::getInstance().addToLog("currentPointCloud->wasFullyLoaded = true;", "testThread");
+		}
+		else
+		{
+			if (currentPath.size() <= 4)
+				debugLog::getInstance().addToLog("filePath lenght was less then 4", "ERRORS");
+
+			if (!std::filesystem::exists(currentPath))
+				debugLog::getInstance().addToLog("File can't be found!", "ERRORS");
 		}
 
 		loadingDone = true;
@@ -641,14 +850,212 @@ LoadManager::~LoadManager()
 {
 }
 
-bool LoadManager::tryLoadPointCloudAsync(std::string path, pointCloud* PointCloud)
+bool LoadManager::tryLoadPointCloudAsync(std::string path, std::string projectPath, pointCloud* PointCloud)
 {
 	// Firstly we check if we can process this request right now
 	// if we are working on different request we should decline this one.
 	bool expected = true;
 	if (!loadingDone.compare_exchange_strong(expected, false))
 	{
-		debugLog::getInstance().addToLog("loadingDone was false !", "OctreeEvents");
+		debugLog::getInstance().addToLog("Loading thread was in work !", "OctreeEvents");
+		return false;
+	}
+
+	currentPath = path;
+	currentProjectPath = projectPath;
+	currentPointCloud = PointCloud;
+
+	newJobReady = true;
+	return true;
+}
+
+void LoadManager::loadPointCloudAsync(std::string path, std::string projectPath, pointCloud* PointCloud)
+{
+	//debugLog::getInstance().addToLog("loadPointCloudAsync path: " + path, "LoadManager");
+	bool expected = true;
+	if (!loadingDone.compare_exchange_strong(expected, false))
+	{
+		pointCloudsToLoad.push_back(make_pair(path, PointCloud));
+		//debugLog::getInstance().addToLog("pointCloudsToLoad.size(): " + std::to_string(pointCloudsToLoad.size()), "LoadManager");
+		return;
+	}
+
+	//debugLog::getInstance().addToLog("loadPointCloudAsync loading " + path, "LoadManager");
+
+	currentPath = path;
+	currentProjectPath = projectPath;
+	currentPointCloud = PointCloud;
+
+	newJobReady = true;
+}
+
+void LoadManager::update()
+{
+	//debugLog::getInstance().addToLog("pointCloudsToLoad.size(): " + std::to_string(pointCloudsToLoad.size()), "LoadManager");
+	if (pointCloudsToLoad.size() > 0)
+	{
+		bool expected = true;
+		if (!loadingDone.compare_exchange_strong(expected, false))
+			return;
+			
+		currentPath = pointCloudsToLoad[0].first;
+		currentPointCloud = pointCloudsToLoad[0].second;
+
+		newJobReady = true;
+		pointCloudsToLoad.erase(pointCloudsToLoad.begin());
+	}
+}
+
+bool LoadManager::isLoadingDone()
+{
+	return loadingDone.load();
+}
+
+
+
+// =============================================================================================
+
+SaveManager* SaveManager::_instance = nullptr;
+
+void SaveManager::saveFunc()
+{
+	while (true)
+	{
+		if (currentPath != "" && currentPath.size() > 4)
+		{
+			newJobReady = false;
+
+			// if file is in our own format
+			if (currentPath[currentPath.size() - 4] == '.' &&
+				currentPath[currentPath.size() - 3] == 'c' &&
+				currentPath[currentPath.size() - 2] == 'p' &&
+				currentPath[currentPath.size() - 1] == 'c')
+			{
+
+			}
+			else
+			{
+				/*pointCloud* currentPointCloud = getPointCloud(pointCloudID);
+				if (currentPointCloud == nullptr)
+					return;*/
+
+				//LOG.addToLog("flag 0", "writeTest");
+				laszip_POINTER laszip_writer;
+				if (laszip_create(&laszip_writer))
+				{
+					LOG.addToLog("creating laszip writer failed", "DLL_ERRORS");
+					return;
+				}
+				//LOG.addToLog("flag 1", "writeTest");
+
+				int pointsToWrite = 0;
+				for (size_t j = 0; j < currentPointCloud->getPointCount(); j++)
+				{
+					if (currentPointCloud->vertexInfo[j].position[0] != DELETED_POINTS_COORDINATE &&
+						currentPointCloud->vertexInfo[j].position[1] != DELETED_POINTS_COORDINATE &&
+						currentPointCloud->vertexInfo[j].position[2] != DELETED_POINTS_COORDINATE)
+						pointsToWrite++;
+				}
+				//LOG.addToLog("flag 2", "writeTest");
+
+				currentPointCloud->loadedFrom->header.number_of_point_records = pointsToWrite;
+				if (laszip_set_header(laszip_writer, &currentPointCloud->loadedFrom->header))
+				{
+					LOG.addToLog("setting header for laszip writer failed", "DLL_ERRORS");
+				}
+				//LOG.addToLog("flag 3", "writeTest");
+
+				std::string fileName = currentPath;
+				if (laszip_open_writer(laszip_writer, fileName.c_str(), true))
+				{
+					LOG.addToLog("opening laszip writer for " + fileName + " failed", "DLL_ERRORS");
+
+					laszip_CHAR* error;
+					if (laszip_get_error(laszip_writer, &error))
+					{
+						LOG.addToLog("getting error messages", "DLL_ERRORS");
+					}
+					LOG.addToLog("MESSAGE: " + std::string(error), "DLL_ERRORS");
+					return;
+				}
+
+				//LOG.addToLog("flag 4", "writeTest");
+				for (size_t j = 0; j < currentPointCloud->getPointCount(); j++)
+				{
+					//LOG.addToLog("iteration of (size_t j = 0; j < pointClouds[pointCloudIndex]->getPointCount(); j++)", "TEST");
+					if (currentPointCloud->vertexInfo[j].position[0] != DELETED_POINTS_COORDINATE &&
+						currentPointCloud->vertexInfo[j].position[1] != DELETED_POINTS_COORDINATE &&
+						currentPointCloud->vertexInfo[j].position[2] != DELETED_POINTS_COORDINATE)
+					{
+						if (laszip_set_point(laszip_writer, &currentPointCloud->loadedFrom->LAZpoints[j]))
+						{
+							LOG.addToLog("setting point " + std::to_string(j) + " failed", "DLL_ERRORS");
+							return;
+						}
+
+						if (laszip_write_point(laszip_writer))
+						{
+							LOG.addToLog("writing point " + std::to_string(j) + " failed", "DLL_ERRORS");
+							return;
+						}
+					}
+				}
+
+				// close the writer
+				if (laszip_close_writer(laszip_writer))
+				{
+					LOG.addToLog("closing laszip writer failed", "DLL_ERRORS");
+					return;
+				}
+
+				// destroy the writer
+				if (laszip_destroy(laszip_writer))
+				{
+					LOG.addToLog("destroying laszip writer failed", "DLL_ERRORS");
+					return;
+				}
+			}
+
+			currentPath = "";
+			currentPointCloud->wasFullyLoaded = true;
+			currentPointCloud = nullptr;
+		}
+		else
+		{
+			if (currentPath.size() <= 4)
+				debugLog::getInstance().addToLog("FilePath lenght was less then 4 in SaveManager::saveFunc()", "ERRORS");
+		}
+
+		savingDone = true;
+		while (true)
+		{
+			Sleep(5);
+			if (newJobReady.load())
+				break;
+		}
+	}
+}
+
+SaveManager::SaveManager()
+{
+	savingDone = false;
+	newJobReady = false;
+	threadHandler = std::thread(&SaveManager::saveFunc, this);
+	threadHandler.detach();
+}
+
+SaveManager::~SaveManager()
+{
+}
+
+bool SaveManager::trySavePointCloudAsync(std::string path, pointCloud* PointCloud)
+{
+	// Firstly we check if we can process this request right now
+	// if we are working on different request we should decline this one.
+	bool expected = true;
+	if (!savingDone.compare_exchange_strong(expected, false))
+	{
+		debugLog::getInstance().addToLog("Saving thread was in work !", "OctreeEvents");
 		return false;
 	}
 
@@ -659,7 +1066,7 @@ bool LoadManager::tryLoadPointCloudAsync(std::string path, pointCloud* PointClou
 	return true;
 }
 
-bool LoadManager::isLoadingDone()
+bool SaveManager::isSaveDone()
 {
-	return loadingDone.load();
+	return savingDone.load();
 }

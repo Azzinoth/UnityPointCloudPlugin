@@ -45,11 +45,13 @@ public:
 	SINGLETON_PUBLIC_PART(debugLog)
 	void addToLog(std::string logEntry, std::string topic = "debugLog");
 	void addToLog(std::string logEntry, glm::vec3 vector, std::string topic = "debugLog");
+	void addToLog(std::string logEntry, glm::mat4 matrix, std::string topic = "debugLog");
 	std::vector<std::string> log;
 private:
 	SINGLETON_PRIVATE_PART(debugLog)
 	std::unordered_map<std::string, std::fstream*> openedFiles;
 	std::string vec3ToString(glm::vec3 vector);
+	std::string mat4ToString(glm::mat4 matrix);
 };
 
 #define LOG debugLog::getInstance()
