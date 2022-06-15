@@ -19,7 +19,7 @@ std::string getVersion()
 	return result;
 }
 
-static std::string currentVersion = "version 2022.4.28.18455";
+static std::string currentVersion = "version 2022.6.15.16834";
 
 static ID3D11Buffer* m_CB;
 static ID3D11VertexShader* m_VertexShader;
@@ -1727,6 +1727,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestPointCloudAdju
 	adjustment[8] = currentPointCloud->getSearchOctree()->root->nodeAABB.max.x;
 	adjustment[9] = currentPointCloud->getSearchOctree()->root->nodeAABB.max.y;
 	adjustment[10] = currentPointCloud->getSearchOctree()->root->nodeAABB.max.z;
+
+	adjustment[11] = currentPointCloud->EPSG;
+	adjustment[12] = currentPointCloud->getApproximateGroundLevel();
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestPointCloudUTMZoneFromUnity(int* UTMZone, int* North, char* pointCloudID)
@@ -3401,4 +3404,13 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API setScreenIndex(int ne
 {
 	//screenIndex = newScreenIndex;
 	//LOG.addToLog("newScreenIndex: " + std::to_string(newScreenIndex), "screens");
+}
+
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestEPSGFromUnity(char* pointCloudID)
+{
+	pointCloud* currentPointCloud = getPointCloud(pointCloudID);
+	if (currentPointCloud == nullptr)
+		return 0;
+
+	return currentPointCloud->EPSG;
 }

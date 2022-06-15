@@ -11,6 +11,8 @@
 
 #include <d3d11.h>
 
+#define DELETED_POINTS_COORDINATE -20000.0f
+
 struct MeshVertex
 {
     glm::vec3 position;
@@ -548,7 +550,7 @@ public:
         return isAtleastOnePointInSphereResult;
     }
 
-    glm::vec3* closestPointInNode(octreeNode* node, glm::vec3& referencePoint, int& neighborsInRangeCount, float discardDistance, int minNeighborsInRange)
+    glm::vec3* closestPointsInNode(octreeNode* node, glm::vec3& referencePoint, int& neighborsInRangeCount, float discardDistance, int minNeighborsInRange)
     {
         glm::vec3* result = nullptr;
 
@@ -578,6 +580,43 @@ public:
         return result;
     }
 
+    glm::vec3* closestPointInNode(octreeNode* node, glm::vec3& referencePoint, float discardDistance)
+    {
+        glm::vec3* result = nullptr;
+
+        float minDistance = FLT_MAX;
+        for (size_t i = 0; i < node->objects.size(); i++)
+        {
+            if (node->objects[i].position.x == referencePoint.x &&
+                node->objects[i].position.y == referencePoint.y &&
+                node->objects[i].position.z == referencePoint.z)
+                continue;
+
+            if (node->objects[i].position.x == DELETED_POINTS_COORDINATE &&
+                node->objects[i].position.y == DELETED_POINTS_COORDINATE &&
+                node->objects[i].position.z == DELETED_POINTS_COORDINATE)
+                continue;
+
+            if (node->objects[i].color[0] == 255 &&
+                node->objects[i].color[1] == 0 &&
+                node->objects[i].color[2] == 0 &&
+                node->objects[i].color[3] == 255)
+                continue;
+
+            float distance = glm::distance(node->objects[i].position, referencePoint);
+            if (distance < minDistance)
+            {
+                minDistance = distance;
+                result = &node->objects[i].position;
+
+                /*if (distance < discardDistance)
+                    return result;*/
+            }
+        }
+
+        return result;
+    }
+
     float closestPointDistance(glm::vec3& referencePoint, float discardDistance, int minNeighborsInRange)
     {
         int neighborsInRangeCount = 0;
@@ -596,17 +635,17 @@ public:
             closestPoints[i] = nullptr;
         }
 
-        glm::vec3* ptr = closestPointInNode(node, referencePoint, neighborsInRangeCount, discardDistance, minNeighborsInRange);
+        glm::vec3* ptr = closestPointsInNode(node, referencePoint, neighborsInRangeCount, discardDistance, minNeighborsInRange);
         closestPoints[arrayIndex++] = ptr;
 
         if (node->parent != nullptr)
         {
-            ptr = closestPointInNode(node->parent, referencePoint, neighborsInRangeCount, discardDistance, minNeighborsInRange);
+            ptr = closestPointsInNode(node->parent, referencePoint, neighborsInRangeCount, discardDistance, minNeighborsInRange);
             closestPoints[arrayIndex++] = ptr;
 
             for (size_t i = 0; i < 8; i++)
             {
-                glm::vec3* ptr = closestPointInNode(node->parent->childs[i], referencePoint, neighborsInRangeCount, discardDistance, minNeighborsInRange);
+                glm::vec3* ptr = closestPointsInNode(node->parent->childs[i], referencePoint, neighborsInRangeCount, discardDistance, minNeighborsInRange);
                 closestPoints[arrayIndex++] = ptr;
             }
         }
@@ -619,6 +658,53 @@ public:
 
             float distance = glm::distance(*closestPoints[i], referencePoint);
             if (distance < minDistance && neighborsInRangeCount >= minNeighborsInRange)
+            {
+                minDistance = distance;
+                closestPoint = *closestPoints[i];
+            }
+        }
+
+        return minDistance;
+    }
+
+    float closestPointDistance(glm::vec3& referencePoint, float discardDistance)
+    {
+        int arrayIndex = 0;
+        glm::vec3 closestPoint;
+
+        octreeNode* node = root->getNodeContaining(referencePoint);
+        if (node == nullptr)
+            return FLT_MAX;
+
+        glm::vec3* closestPoints[10];
+        for (size_t i = 0; i < 10; i++)
+        {
+            closestPoints[i] = nullptr;
+        }
+
+        glm::vec3* ptr = closestPointInNode(node, referencePoint, discardDistance);
+        closestPoints[arrayIndex++] = ptr;
+
+        if (node->parent != nullptr)
+        {
+            ptr = closestPointInNode(node->parent, referencePoint, discardDistance);
+            closestPoints[arrayIndex++] = ptr;
+
+            for (size_t i = 0; i < 8; i++)
+            {
+                glm::vec3* ptr = closestPointInNode(node->parent->childs[i], referencePoint, discardDistance);
+                closestPoints[arrayIndex++] = ptr;
+            }
+        }
+
+        float minDistance = FLT_MAX;
+        for (size_t i = 0; i < 10; i++)
+        {
+            if (closestPoints[i] == nullptr)
+                continue;
+
+            float distance = glm::distance(*closestPoints[i], referencePoint);
+            if (distance < minDistance)
             {
                 minDistance = distance;
                 closestPoint = *closestPoints[i];

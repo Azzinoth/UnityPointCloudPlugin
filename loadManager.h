@@ -10,7 +10,6 @@
 //#define USE_QUADS_NOT_POINTS
 //#define USE_COMPUTE_SHADER
 //#define LOD_SYSTEM
-#define DELETED_POINTS_COORDINATE -10000.0f
 
 static std::string getUniqueId()
 {
@@ -172,6 +171,9 @@ public:
 	int lastMinNeighborsInRange;
 	std::vector<int> lastOutliers;
 
+	unsigned short EPSG;
+	float approximateGroundLevel;
+
 	pointCloud()
 	{
 		mainVB = nullptr;
@@ -214,8 +216,8 @@ public:
 			{
 				debugLog::getInstance().addToLog("point was: rejected", "OctreeEvents");
 				debugLog::getInstance().addToLog("point:", vertexInfo[i].position, "OctreeEvents");
-	}
-}
+			}
+		}
 		debugLog::getInstance().addToLog(" after for (int i = 0; i < vertexInfo.size(); i++)", "testThread");
 #endif
 	}
@@ -236,10 +238,66 @@ public:
 		lastMinNeighborsInRange = minNeighborsInRange;
 
 		lastOutliers.clear();
+
+		// Subsample
+		//for (size_t i = 0; i < vertexInfo.size(); i++)
+		//{
+		//	if (vertexInfo[i].position[0] == DELETED_POINTS_COORDINATE &&
+		//		vertexInfo[i].position[1] == DELETED_POINTS_COORDINATE &&
+		//		vertexInfo[i].position[2] == DELETED_POINTS_COORDINATE)
+		//		continue;
+
+		//	// We rely on fact that points are somewhat sorted by their position in an array.
+		//	bool earlyExit = false;
+		//	for (size_t j = i - 10; j < i + 10; j++)
+		//	{
+		//		if (j < 0 || j >= vertexInfo.size() || j == i)
+		//			continue;
+
+		//		float distance = glm::length(vertexInfo[i].position - vertexInfo[j].position);
+		//		if (distance < discardDistance)
+		//		{
+		//			earlyExit = true;
+		//			break;
+		//		}
+		//	}
+
+		//	if (earlyExit)
+		//	{
+		//		vertexInfo[i].color[0] = 255;
+		//		vertexInfo[i].color[1] = 0;
+		//		vertexInfo[i].color[2] = 0;
+		//		vertexInfo[i].color[3] = 255;
+
+		//		lastOutliers.push_back(int(i));
+
+		//		continue;
+		//	}
+
+		//	float distance = getSearchOctree()->closestPointDistance(vertexInfo[i].position, discardDistance);
+		//	if (distance < discardDistance)
+		//	{
+		//		vertexInfo[i].color[0] = 255;
+		//		vertexInfo[i].color[1] = 0;
+		//		vertexInfo[i].color[2] = 0;
+		//		vertexInfo[i].color[3] = 255;
+
+		//		lastOutliers.push_back(int(i));
+		//	}
+		//	else
+		//	{
+		//		vertexInfo[i].color[0] = originalData[i].color[0];
+		//		vertexInfo[i].color[1] = originalData[i].color[1];
+		//		vertexInfo[i].color[2] = originalData[i].color[2];
+		//		vertexInfo[i].color[3] = originalData[i].color[3];
+		//	}
+		//}
+
+
 		for (size_t i = 0; i < vertexInfo.size(); i++)
 		{
 			float distance = FLT_MAX;
-			// We relay on fact that points are somewhat sorted by their position in an array.
+			// We rely on fact that points are somewhat sorted by their position in an array.
 			int localNeighbors = 0;
 			for (size_t j = i - 10; j < i + 10; j++)
 			{
@@ -300,6 +358,35 @@ public:
 //#else
 //		ctx->UpdateSubresource(mainVB, 0, NULL, vertexInfo.data(), getPointCount() * kVertexSize, getPointCount() * kVertexSize);
 //#endif // USE_COMPUTE_SHADER
+	}
+
+	float getApproximateGroundLevel()
+	{
+		return approximateGroundLevel;
+	}
+
+	void calculateApproximateGroundLevel()
+	{
+		std::vector<float> allYValues;
+		allYValues.resize(vertexInfo.size());
+		for (size_t i = 0; i < vertexInfo.size(); i++)
+		{
+			allYValues[i] = vertexInfo[i].position.y;
+		}
+
+		std::sort(allYValues.begin(), allYValues.end());
+
+		int numbOfPoints = int(vertexInfo.size() * 0.01f);
+		float mean = 0.0f;
+		for (size_t i = 0; i < numbOfPoints; i++)
+		{
+			mean += allYValues[i];
+		}
+
+		if (numbOfPoints != 0)
+			mean /= numbOfPoints;
+
+		approximateGroundLevel = mean;
 	}
 };
 

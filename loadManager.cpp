@@ -425,6 +425,7 @@ void LoadManager::loadFunc()
 							//std::cout << "value_offset: " << readKeys[j].value_offset << std::endl;
 
 							debugLog::getInstance().addToLog("EPSG: " + std::to_string(readKeys[j].value_offset), "EPSG");
+							currentPointCloud->EPSG = readKeys[j].value_offset;
 						}
 					}
 				}
@@ -809,6 +810,9 @@ void LoadManager::loadFunc()
 			debugLog::getInstance().addToLog("Rootnode AABB min: ", currentPointCloud->getSearchOctree()->root->nodeAABB.min, "OctreeEvents");
 			debugLog::getInstance().addToLog("Rootnode AABB max: ", currentPointCloud->getSearchOctree()->root->nodeAABB.max, "OctreeEvents");
 			debugLog::getInstance().addToLog("Max depth: " + std::to_string(currentPointCloud->getSearchOctree()->getDebugMaxNodeDepth()), "OctreeEvents");
+
+			currentPointCloud->calculateApproximateGroundLevel();
+			debugLog::getInstance().addToLog("ApproximateGroundLevel: " + std::to_string(currentPointCloud->getApproximateGroundLevel()), "OctreeEvents");
 
 			currentPointCloud->loadedFrom = fileInfo;
 			if (currentPointCloud->loadedFrom != nullptr)
