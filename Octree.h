@@ -11,7 +11,7 @@
 
 #include <d3d11.h>
 
-#define DELETED_POINTS_COORDINATE -20000.0f
+#define DELETED_POINTS_COORDINATE -200000.0f
 
 struct MeshVertex
 {

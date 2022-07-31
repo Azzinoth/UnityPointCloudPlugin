@@ -19,7 +19,7 @@ std::string getVersion()
 	return result;
 }
 
-static std::string currentVersion = "version 2022.6.15.16834";
+static std::string currentVersion = "version 2022.6.21.17102";
 
 static ID3D11Buffer* m_CB;
 static ID3D11VertexShader* m_VertexShader;
@@ -1549,12 +1549,12 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 static glm::vec3 lastDeletionCenter = glm::vec3(-10000.0f);
 static float lastDeletionSize = -100.0f;
 static DWORD alternativeTime = GetTickCount();
-extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUnity(float* center, float size)
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUnity(float* center, float size)
 {
 	if (size <= 0)
 	{
 		LOG.addToLog("deletion sphere size was: " + std::to_string(size), "deleteEvents");
-		return false;
+		return 0;
 	}
 
 	glm::vec3 centerOfBrush = glm::vec3(center[0], center[1], center[2]);
@@ -1567,7 +1567,7 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUn
 		else
 		{
 			LOG.addToLog("lastDeletionSize == size && lastDeletionCenter == centerOfBrush", "deleteEvents");
-			return false;
+			return 0;
 		}
 	}
 	lastDeletionSize = size;
@@ -1586,13 +1586,14 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUn
 	if (GetTickCount() - timeLastTimeCall < 20)
 	{
 		//LOG.addToLog("denial onDrawDeletePointsinGPUMem", "deleteEvents");
-		return false;
+		return 0;
 	}
 	timeLastTimeCall = GetTickCount();
 	
 	//LOG.addToLog("line: " + std::to_string(__LINE__), "linesHited");
 
-	bool anyPointWasDeleted = false;
+	int pointWasDeleted = 0;
+	//bool anyPointWasDeleted = false;
 	//LOG.addToLog("line: " + std::to_string(__LINE__), "linesHited");
 #ifdef USE_COMPUTE_SHADER
 
@@ -1665,8 +1666,8 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUn
 					pointClouds[i]->vertexInfo[currentOctree->pointsToDelete[j]].position[1] != DELETED_POINTS_COORDINATE &&
 					pointClouds[i]->vertexInfo[currentOctree->pointsToDelete[j]].position[2] != DELETED_POINTS_COORDINATE)
 				{
-					anyPointWasDeleted = true;
-					break;
+					pointWasDeleted++;
+					//break;
 				}
 			}
 
@@ -1680,7 +1681,7 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUn
 
 	//requestToDelete = true;
 	//LOG.addToLog("line: " + std::to_string(__LINE__), "linesHited");
-	return anyPointWasDeleted;
+	return pointWasDeleted;
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestOctreeDebugMaxNodeDepthFromUnity()
@@ -3413,4 +3414,9 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestEPSGFromUnity(c
 		return 0;
 
 	return currentPointCloud->EPSG;
+}
+
+extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API IsLastAsyncSaveFinished()
+{
+	return SaveManager::getInstance().isSaveDone();
 }
