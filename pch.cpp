@@ -19,7 +19,7 @@ std::string getVersion()
 	return result;
 }
 
-static std::string currentVersion = "version 2022.6.21.17102";
+static std::string currentVersion = "version 2022.8.4.22447";
 
 static ID3D11Buffer* m_CB;
 static ID3D11VertexShader* m_VertexShader;
@@ -1451,6 +1451,7 @@ static int iteration = 0;
 
 static int lastDeletedMinIndex = -1;
 static int lastDeletedMaxIndex = -1;
+static int lastPointsCount = -1;
 void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx)
 {
 	/*if (GetTickCount() - timeLastTimeCall < 30)
@@ -1469,6 +1470,7 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 
 	int minIndex = INT_MAX;
 	int maxIndex = INT_MIN;
+	int pointCountTemp = pointCloud->getSearchOctree()->pointsToDelete.size();
 
 	if (pointCloud->getSearchOctree()->pointsToDelete.size() != 0 || (minIndex != INT_MAX && maxIndex != INT_MIN))
 	{
@@ -1480,8 +1482,10 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 		box.front = 0;
 		box.back = 1;
 
+		LOG.addToLog("pointCloud->getSearchOctree()->pointsToDelete.size(): " + std::to_string(pointCloud->getSearchOctree()->pointsToDelete.size()), "onDrawDeletePointsinGPUMem");
+
 		if (pointCloud->getSearchOctree()->pointsToDelete.size() != 0)
-			LOG.addToLog("DrawPointCloud with pointsToDelete first element: " + std::to_string(pointCloud->getSearchOctree()->pointsToDelete[0]), "deleteEvents");
+			LOG.addToLog("DrawPointCloud with pointsToDelete first element: " + std::to_string(pointCloud->getSearchOctree()->pointsToDelete[0]), "onDrawDeletePointsinGPUMem");
 
 		for (size_t i = 0; i < pointCloud->getSearchOctree()->pointsToDelete.size(); i++)
 		{
@@ -1497,13 +1501,13 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 		}
 		pointCloud->getSearchOctree()->pointsToDelete.clear();
 
-		LOG.addToLog("maxIndex: " + std::to_string(maxIndex), "deleteEvents");
-		LOG.addToLog("minIndex: " + std::to_string(minIndex), "deleteEvents");
+		LOG.addToLog("maxIndex: " + std::to_string(maxIndex), "onDrawDeletePointsinGPUMem");
+		LOG.addToLog("minIndex: " + std::to_string(minIndex), "onDrawDeletePointsinGPUMem");
 
 		if (minIndex == INT_MAX || maxIndex == INT_MIN)
 			return;
 
-		if (minIndex == lastDeletedMinIndex && maxIndex == lastDeletedMaxIndex)
+		if (minIndex == lastDeletedMinIndex && maxIndex == lastDeletedMaxIndex && pointCountTemp == lastPointsCount)
 		{
 			if (UNDO_MANAGER.undoActionWasApplied)
 			{
@@ -1511,12 +1515,13 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 			}
 			else
 			{
-				LOG.addToLog("minIndex == lastDeletedMinIndex && maxIndex == lastDeletedMaxIndex", "deleteEvents");
+				LOG.addToLog("minIndex == lastDeletedMinIndex && maxIndex == lastDeletedMaxIndex && pointCountTemp == lastPointsCount", "onDrawDeletePointsinGPUMem");
 				return;
 			}
 		}
 		lastDeletedMinIndex = minIndex;
 		lastDeletedMaxIndex = maxIndex;
+		lastPointsCount = pointCountTemp;
 
 		box.left = minIndex * kVertexSize;
 		box.right = minIndex * kVertexSize + (maxIndex - minIndex + 1) * kVertexSize;
@@ -1529,15 +1534,15 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 		dbox.front = 0;
 		dbox.back = 1;
 
-		LOG.addToLog("min: " + std::to_string(minIndex), "deleteEvents");
-		LOG.addToLog("dbox.right: " + std::to_string(dbox.right), "deleteEvents");
+		LOG.addToLog("min: " + std::to_string(minIndex), "onDrawDeletePointsinGPUMem");
+		LOG.addToLog("dbox.right: " + std::to_string(dbox.right), "onDrawDeletePointsinGPUMem");
 
-		LOG.addToLog("box.left: " + std::to_string(box.left), "deleteEvents");
-		LOG.addToLog("box.right: " + std::to_string(box.right), "deleteEvents");
+		LOG.addToLog("box.left: " + std::to_string(box.left), "onDrawDeletePointsinGPUMem");
+		LOG.addToLog("box.right: " + std::to_string(box.right), "onDrawDeletePointsinGPUMem");
 
 		if (box.right / kVertexSize > pointCloud->vertexInfo.size())
 		{
-			LOG.addToLog("Error ! box.right / kVertexSize > pointCloudToRender->vertexInfo.size()", "deleteEvents");
+			LOG.addToLog("Error ! box.right / kVertexSize > pointCloudToRender->vertexInfo.size()", "onDrawDeletePointsinGPUMem");
 			return;
 		}
 
@@ -1617,7 +1622,7 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 			runMyDeleteComputeShader(pointClouds[i]);
 
 			UNDO_MANAGER.addAction(new deleteAction(localPosition, size, pointClouds[i]));
-			anyPointWasDeleted = true;
+			//anyPointWasDeleted = true;
 		}
 
 		/*if (pointClouds[i]->getSearchOctree()->pointsToDelete.size() > 0)
@@ -1863,8 +1868,9 @@ static void CreateResources()
 	//"C:/Users/kberegovyi/Downloads/ARNav2_compute_08.16.2021/Assets/Plugins/PointCloudPlugin/computeShader_DELETE.hlsl"
 	
 	//compileAndCreateComputeShader(GPU.getDevice(), (BYTE*)g_CSMain, &computeShader);
-	//Kindr
-	compileAndCreateComputeShader(GPU.getDevice(), "C:/Users/kandr/OneDrive/University/ocean_lab/PointCloudPlugin/shaders/computeShader_DELETE_NEW.hlsl", &computeShader);
+	// Kindr
+	// kandr
+	compileAndCreateComputeShader(GPU.getDevice(), "C:/Users/Kindr/OneDrive/University/ocean_lab/PointCloudPlugin/shaders/computeShader_DELETE_NEW.hlsl", &computeShader);
 
 	//outliers_CS = new CShader("C:/Users/kandr/OneDrive/University/ocean_lab/PointCloudPlugin/shaders/computeShader_Outliers.hlsl");
 	compileAndCreateComputeShader(GPU.getDevice(), (BYTE*)g_CSOutLiers, &outliers_CS);
@@ -2132,6 +2138,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 	if (pointCloudToRender->pointsToDraw != 0 && pointCloudToRender->pointsToDraw <= pointCloudToRender->getPointCount())
 	{
 		float distanceToCamera = glm::distance(glm::vec3(glmWorldMatrix[3][0], glmWorldMatrix[3][1], glmWorldMatrix[3][2]), glm::vec3(glmViewMatrix[3][0], glmViewMatrix[3][1], glmViewMatrix[3][2]));
+#ifdef LOD_SYSTEM
 		if (!LODSystemActive)
 		{
 			//LOG.addToLog("pointCloudToRender->pointsToDraw: " + std::to_string(pointCloudToRender->pointsToDraw), "computeShader");
@@ -2148,6 +2155,9 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 				}
 			}
 		}
+#else
+		ctx->Draw(pointCloudToRender->pointsToDraw, 0);
+#endif
 	}
 
 #else
@@ -2964,10 +2974,11 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestClosestPointIn
 		glm::vec3 localPosition = glm::inverse(glm::transpose(pointClouds[i]->worldMatrix)) * glm::vec4(referencePoint, 1.0f);
 
 		auto timeDeleteObjects = GetTickCount();
+
 		pointClouds[i]->getSearchOctree()->deleteObjects(localPosition, size);
 		//debugLog::getInstance().addToLog("timeDeleteObjects: " + std::to_string(GetTickCount() - timeDeleteObjects), "RequestClosestPointInSphereFromUnity");
 
-		//LOG.addToLog("pointClouds[i]->getSearchOctree()->pointsToDelete.size(): " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "TEST");
+		LOG.addToLog("pointClouds[i]->getSearchOctree()->pointsToDelete.size(): " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
 		totalCountOFPoints += int(pointClouds[i]->getSearchOctree()->pointsToDelete.size());
 
 		for (size_t j = 0; j < pointClouds[i]->getSearchOctree()->pointsToDelete.size(); j++)
@@ -3195,7 +3206,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //
 //	//LOG.addToLog("runMyComputeShader()_END: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 //}
-static DWORD timeLastTimeCall = GetTickCount();
+
 void runMyDeleteComputeShader(pointCloud* pointCloud)
 {
 	if (pointClouds.size() == 0 || pointCloud == nullptr || !pointCloud->wasFullyLoaded || pointCloud->mainVB == nullptr)
@@ -3280,7 +3291,7 @@ void runMyDeleteComputeShader(pointCloud* pointCloud)
 	{
 		LOG.addToLog("denial RequestToDeleteFromUnity", "deleteEvents");
 		LOG.addToLog("time: " + std::to_string(GetTickCount() - timeLastTimeCall), "deleteEvents");
-		return;
+		//return;
 	}
 
 	LOG.addToLog("NOT denial RequestToDeleteFromUnity", "deleteEvents");

@@ -530,7 +530,7 @@ void LoadManager::loadFunc()
 					tempVertex[p_count].y = readY;
 					tempVertex[p_count].z = readZ;
 
-					if (p_count < 1000)
+					/*if (p_count < 1000)
 					{
 						debugLog::getInstance().addToLog("readX : " + std::to_string(readX), "precision");
 						debugLog::getInstance().addToLog("readY : " + std::to_string(readY), "precision");
@@ -539,7 +539,7 @@ void LoadManager::loadFunc()
 						debugLog::getInstance().addToLog("currentPointCloud->vertexInfo[p_count].position[0] : " + std::to_string(currentPointCloud->vertexInfo[p_count].position[0]), "precision");
 						debugLog::getInstance().addToLog("currentPointCloud->vertexInfo[p_count].position[1] : " + std::to_string(currentPointCloud->vertexInfo[p_count].position[1]), "precision");
 						debugLog::getInstance().addToLog("currentPointCloud->vertexInfo[p_count].position[2] : " + std::to_string(currentPointCloud->vertexInfo[p_count].position[2]), "precision");
-					}
+					}*/
 
 					currentPointCloud->vertexInfo[p_count].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
 					currentPointCloud->vertexInfo[p_count].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
@@ -826,10 +826,10 @@ void LoadManager::loadFunc()
 		else
 		{
 			if (currentPath.size() <= 4)
-				debugLog::getInstance().addToLog("filePath lenght was less then 4", "ERRORS");
+				debugLog::getInstance().addToLog("FilePath lenght was less then 4", "ERRORS");
 
 			if (!std::filesystem::exists(currentPath))
-				debugLog::getInstance().addToLog("File can't be found!", "ERRORS");
+				debugLog::getInstance().addToLog("File can't be found in \"" + currentPath + "\"", "ERRORS");
 		}
 
 		loadingDone = true;
