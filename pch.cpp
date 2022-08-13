@@ -1039,15 +1039,20 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API getNewUniqueID(int* I
 
 void AsynOpenLAZFileFromUnity(char* filePath, char* ID)
 {
+	LOG.addToLog(std::string("File name: ") + filePath, "File_name");
+
 	if (strlen(filePath) < 4)
+	{
+		LOG.addToLog(std::string("Call of AsynOpenLAZFileFromUnity can't be executed because file name is incorrect: ") + filePath, "ERRORS");
 		return;
+	}
 
 	// if file is in our own format we will not need dll functionality
 	if (filePath[strlen(filePath) - 4] != '.' && filePath[strlen(filePath) - 3] != 'c' && filePath[strlen(filePath) - 2] != 'p' && filePath[strlen(filePath) - 1] != 'c')
 	{
 		if (!DLLWasLoadedCorrectly)
 		{
-			LOG.addToLog("Call of OpenLAZFileFromUnity can't be executed because DLL was not loaded correctly", "ERRORS");
+			LOG.addToLog("Call of AsynOpenLAZFileFromUnity can't be executed because DLL was not loaded correctly", "ERRORS");
 			return;
 		}
 	}
@@ -1060,8 +1065,13 @@ void AsynOpenLAZFileFromUnity(char* filePath, char* ID)
 
 extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OpenLAZFileFromUnity(char* filePath, char* ID)
 {
+	LOG.addToLog(std::string("File name: ") + filePath, "File_Name");
+
 	if (strlen(filePath) < 4)
+	{
+		LOG.addToLog(std::string("Call of AsynOpenLAZFileFromUnity can't be executed because file name is incorrect: ") + filePath, "ERRORS");
 		return false;
+	}
 
 	// if file is in our own format we will not need dll functionality
 	if (filePath[strlen(filePath) - 4] != '.' && filePath[strlen(filePath) - 3] != 'c' && filePath[strlen(filePath) - 2] != 'p' && filePath[strlen(filePath) - 1] != 'c')
@@ -1128,6 +1138,8 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 	pointClouds.clear();*/
 
 	projectPath = projectFilePath;
+	LOG.addToLog("Project path: " + std::string(projectFilePath), "Project_File_Path");
+
 	if (!DLLWasLoadedCorrectly)
 	{
 		if (laszip_load_dll(projectFilePath))

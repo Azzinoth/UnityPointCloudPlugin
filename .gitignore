@@ -26,6 +26,8 @@ pch - Copy.cpp
 pch__.cpp
 pch____.cpp
 pch_test.cpp
+pch_OLD.cpp
+pch_Shaders.cpp
 
 #Folders
 Debug/

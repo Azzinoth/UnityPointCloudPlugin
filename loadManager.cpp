@@ -301,9 +301,12 @@ void LoadManager::loadFunc()
 			{
 				// create the reader
 				laszip_POINTER laszip_reader;
-				if (laszip_create(&laszip_reader))
+
+				laszip_I32 error = laszip_create(&laszip_reader);
+				if (error)
 				{
-					debugLog::getInstance().addToLog("creating laszip reader failed", "DLL_ERRORS");
+					debugLog::getInstance().addToLog("Creating laszip reader failed", "DLL_ERRORS");
+					debugLog::getInstance().addToLog("Error: " + std::to_string(error), "DLL_ERRORS");
 					return;
 				}
 
@@ -880,11 +883,11 @@ void LoadManager::loadPointCloudAsync(std::string path, std::string projectPath,
 	if (!loadingDone.compare_exchange_strong(expected, false))
 	{
 		pointCloudsToLoad.push_back(make_pair(path, PointCloud));
-		//debugLog::getInstance().addToLog("pointCloudsToLoad.size(): " + std::to_string(pointCloudsToLoad.size()), "LoadManager");
+		debugLog::getInstance().addToLog("pointCloudsToLoad.size(): " + std::to_string(pointCloudsToLoad.size()), "LoadManager");
 		return;
 	}
 
-	//debugLog::getInstance().addToLog("loadPointCloudAsync loading " + path, "LoadManager");
+	debugLog::getInstance().addToLog("Loading: " + path, "LoadManager");
 
 	currentPath = path;
 	currentProjectPath = projectPath;
