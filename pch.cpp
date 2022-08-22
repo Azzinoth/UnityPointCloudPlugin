@@ -1795,6 +1795,35 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 	s_Graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
 }
 
+const std::string VertexShaderSource = R"(
+
+cbuffer MyCB : register(b0)
+{
+	float4x4 finalMatrix;
+	float4x4 glmViewMatrix;
+	float4x4 worldMatrix;
+}
+
+void VS(float3 pos : POSITION, float4 color : COLOR, out float4 FinalColor : COLOR, out float4 FinalPosition : SV_Position)
+{
+	FinalPosition = mul(finalMatrix, float4(pos, 1));
+	FinalColor = float4(0, 1, 0, 1);
+
+	float3 CameraPosition = float3(-glmViewMatrix[3][1], -glmViewMatrix[3][2], glmViewMatrix[3][0]);
+	float3 WorldPosition = mul(worldMatrix, float4(pos, 1));
+
+	if (FinalPosition.z > 10000)
+	//if (distance(CameraPosition, WorldPosition) < 1)
+	//float Difference = abs(-glmViewMatrix[3][1] - 8912.2);
+
+	//if (Difference > 1)
+		FinalColor = float4(1, 0, 0, 1);
+
+	//FinalColor = color;
+}
+
+)";
+
 static void CreateResources()
 {
 	D3D11_BUFFER_DESC desc;
@@ -1805,7 +1834,7 @@ static void CreateResources()
 #ifdef USE_QUADS_NOT_POINTS
 	desc.ByteWidth = 64 * 3;
 #else
-	desc.ByteWidth = 64;
+	desc.ByteWidth = 64 * 3;
 #endif
 	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	desc.CPUAccessFlags = 0;
@@ -1817,21 +1846,29 @@ static void CreateResources()
 
 	HRESULT hr;
 	// C:/Users/kberegovyi/Downloads/ARNav2_compute_08.16.2021/Assets/Plugins/PointCloudPlugin/
-	//hr = D3DCompileFromFile(L"C:/Users/kandr/OneDrive/University/ocean_lab/PointCloudPlugin/shaders/VS_QUADS.hlsl", nullptr,
-	//						D3D_COMPILE_STANDARD_FILE_INCLUDE,
-	//						"VS", "vs_5_0",
-	//						D3DCOMPILE_ENABLE_STRICTNESS, 0, &pVSBlob, &errorBlob);
 
-	//LOG.addToLog("shaderResult: " + std::system_category().message(hr), "computeShader");
-	//if (errorBlob)
-	//{
-	//	LOG.addToLog("shaderResult: " + std::string((char*)errorBlob->GetBufferPointer()), "computeShader");
-	//	//OutputDebugStringA((char*)errorBlob->GetBufferPointer());
-	//	errorBlob->Release();
-	//}
+	long VSLen = 0;
+	//void* src = LoadShaderFile(L"C:/Users/kandr/OneDrive/University/ocean_lab/PointCloudPlugin/shaders/VS_POINTS.hlsl", "hlsl", &VSLen);
+	hr = D3DCompile(VertexShaderSource.c_str(),
+		VertexShaderSource.length(),
+		nullptr, nullptr, nullptr, "VS", "vs_5_0",
+		D3DCOMPILE_ENABLE_STRICTNESS, 0, &pVSBlob, &errorBlob);
 
-	hr = GPU.getDevice()->CreateVertexShader(kVertexShaderCode, sizeof(kVertexShaderCode), nullptr, &m_VertexShader);
-	//hr = GPU.getDevice()->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &m_VertexShader);
+	/*hr = D3DCompileFromFile(L"C:/Users/kandr/OneDrive/University/ocean_lab/PointCloudPlugin/shaders/VS_POINTS.hlsl", nullptr,
+							D3D_COMPILE_STANDARD_FILE_INCLUDE,
+							"VS", "vs_5_0",
+							D3DCOMPILE_ENABLE_STRICTNESS, 0, &pVSBlob, &errorBlob);*/
+
+	LOG.addToLog("shaderResult: " + std::system_category().message(hr), "computeShader");
+	if (errorBlob)
+	{
+		LOG.addToLog("shaderResult: " + std::string((char*)errorBlob->GetBufferPointer()), "computeShader");
+		//OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+		errorBlob->Release();
+	}
+
+	//hr = GPU.getDevice()->CreateVertexShader(kVertexShaderCode, sizeof(kVertexShaderCode), nullptr, &m_VertexShader);
+	hr = GPU.getDevice()->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &m_VertexShader);
 
 	if (FAILED(hr))
 		LOG.addToLog("Failed to create vertex shader.", "computeShader");
@@ -1953,7 +1990,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 #ifdef USE_QUADS_NOT_POINTS
 			desc.ByteWidth = 64 * 3;
 #else
-			desc.ByteWidth = 64;
+			desc.ByteWidth = 64 * 3;
 #endif
 			desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 			desc.CPUAccessFlags = 0;
@@ -2007,6 +2044,8 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 
 	glm::mat4 finalMatrix = glmProjectionMatrix * glmViewMatrix * glmWorldMatrix;
 	LOG.addToLog("finalMatrix :", finalMatrix, "camera");
+	LOG.addToLog("glmViewMatrix :", glmViewMatrix, "camera");
+	LOG.addToLog("glmWorldMatrix :", glmWorldMatrix, "camera");
 
 #ifdef USE_QUADS_NOT_POINTS
 	ctx->UpdateSubresource(m_CB, 0, NULL, glm::value_ptr(glmWorldMatrix), 64, 0);
@@ -2016,10 +2055,14 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 	if (internalScreenIndex != -1 || viewProjectionMatricesBuffers.find(internalScreenIndex) == viewProjectionMatricesBuffers.end())
 	{
 		ctx->UpdateSubresource(m_CB, 0, NULL, glm::value_ptr(finalMatrix), 64, 0);
+		ctx->UpdateSubresource(m_CB, 1, NULL, glm::value_ptr(glmViewMatrix), 128, 0);
+		ctx->UpdateSubresource(m_CB, 2, NULL, glm::value_ptr(glmViewMatrix), 192, 0);
 	}
 	else
 	{
 		ctx->UpdateSubresource(viewProjectionMatricesBuffers[internalScreenIndex], 0, NULL, glm::value_ptr(finalMatrix), 64, 0);
+		ctx->UpdateSubresource(viewProjectionMatricesBuffers[internalScreenIndex], 1, NULL, glm::value_ptr(glmViewMatrix), 128, 0);
+		ctx->UpdateSubresource(viewProjectionMatricesBuffers[internalScreenIndex], 2, NULL, glm::value_ptr(glmViewMatrix), 192, 0);
 	}
 	
 #endif
