@@ -1002,6 +1002,47 @@ const BYTE g_CSMain[] =
 	  0,   0,   0,   0,   0,   0
 };
 
+static string NextTextToSend = "";
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetNextTextLengthFromDLL()
+{
+	return NextTextToSend.size();
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API FillTextFromDLL(int* Data)
+{
+	//LOG.addToLog(std::string("NextTextToSend.size(): ") + std::to_string(NextTextToSend.size()), "GetTextFromDLL");
+
+	for (size_t i = 0; i < NextTextToSend.size(); i++)
+	{
+		Data[i] = int(NextTextToSend[i]);
+	}
+
+	NextTextToSend = "";
+}
+
+std::unordered_map<std::string, float> FloatsToSync;
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetFloatsToSyncCount()
+{
+	return FloatsToSync.size();
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestFloatsToSyncVariableName(int index)
+{
+	int currentIndex = 0;
+	auto it = FloatsToSync.begin();
+	while (it != FloatsToSync.end())
+	{
+		if (currentIndex == index)
+		{
+			NextTextToSend = it->first;
+			return;
+		}
+
+		it++;
+		currentIndex++;
+	}
+}
+
 static bool DLLWasLoadedCorrectly = false;
 static std::string resultString;
 static std::string projectPath = "";
@@ -1124,6 +1165,13 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ValidatePointCloudGMF
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity(char* projectFilePath)
 {
+	if (FloatsToSync.size() == 0)
+	{
+		FloatsToSync["FirstFloat"] = 0.0;
+		FloatsToSync["SecondFloat"] = 2.0;
+	}
+
+	NextTextToSend = "TEST_STRING.fgw s 45";
 	//requestToDelete = true;
 	// Call for thread initialization.
 	LoadManager::getInstance();
@@ -1812,14 +1860,14 @@ void VS(float3 pos : POSITION, float4 color : COLOR, out float4 FinalColor : COL
 	float3 CameraPosition = float3(-glmViewMatrix[3][1], -glmViewMatrix[3][2], glmViewMatrix[3][0]);
 	float3 WorldPosition = mul(worldMatrix, float4(pos, 1));
 
-	if (FinalPosition.z > 10000)
+	//if (FinalPosition.z > 10000)
 	//if (distance(CameraPosition, WorldPosition) < 1)
 	//float Difference = abs(-glmViewMatrix[3][1] - 8912.2);
 
 	//if (Difference > 1)
-		FinalColor = float4(1, 0, 0, 1);
+		//FinalColor = float4(1, 0, 0, 1);
 
-	//FinalColor = color;
+	FinalColor = color;
 }
 
 )";
