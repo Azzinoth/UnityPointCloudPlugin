@@ -1043,6 +1043,24 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestFloatsToSyncVa
 	}
 }
 
+extern "C" float UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetFloatToSyncValue(char* Name)
+{
+	if (FloatsToSync.find(Name) == FloatsToSync.end())
+		return 0.0f;
+
+	return FloatsToSync[Name];
+}
+
+extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetFloatToSyncValue(char* Name, float NewValue)
+{
+	if (FloatsToSync.find(Name) == FloatsToSync.end())
+		return false;
+
+	FloatsToSync[Name] = NewValue;
+
+	return true;
+}
+
 static bool DLLWasLoadedCorrectly = false;
 static std::string resultString;
 static std::string projectPath = "";
@@ -1151,9 +1169,6 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ValidatePointCloudGMF
 	// Looking at point clouds that we have in RAM to validate game object from scene.
 	for (size_t i = 0; i < pointClouds.size(); i++)
 	{
-		//if (pointClouds[i]->filePath == filePath)
-		//	return;
-
 		if (pointClouds[i]->ID == pointCloudID)
 			return false;
 	}
@@ -1167,11 +1182,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 {
 	if (FloatsToSync.size() == 0)
 	{
-		FloatsToSync["FirstFloat"] = 0.0;
-		FloatsToSync["SecondFloat"] = 2.0;
+		FloatsToSync["FirstShaderFloat"] = 0.0f;
 	}
 
-	NextTextToSend = "TEST_STRING.fgw s 45";
 	//requestToDelete = true;
 	// Call for thread initialization.
 	LoadManager::getInstance();
@@ -1861,6 +1874,8 @@ void VS(float3 pos : POSITION, float4 color : COLOR, out float4 FinalColor : COL
 	float3 WorldPosition = mul(worldMatrix, float4(pos, 1));
 
 	//if (FinalPosition.z > 10000)
+	//	FinalColor = float4(1, 0, 0, 1);
+
 	//if (distance(CameraPosition, WorldPosition) < 1)
 	//float Difference = abs(-glmViewMatrix[3][1] - 8912.2);
 
