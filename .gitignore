@@ -16,12 +16,11 @@
 *.vcxproj.filters
 *.vcxproj.user
 *.txt
-
-pch_OLD.cpp
+*.cmake
 
 #Folders
 Debug/
-glm/
 Release/
 x64/
 .vs/
+CMakeFiles/
