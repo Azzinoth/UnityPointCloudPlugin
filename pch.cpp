@@ -21,7 +21,7 @@ std::string getVersion()
 
 static std::string currentVersion = "version 2022.8.4.22447";
 
-static ID3D11Buffer* m_CB;
+static ID3D11Buffer* m_CB = nullptr;
 static ID3D11VertexShader* m_VertexShader;
 static ID3D11PixelShader* m_PixelShader;
 static ID3D11InputLayout* m_InputLayout;
@@ -1863,6 +1863,7 @@ cbuffer MyCB : register(b0)
 	float4x4 finalMatrix;
 	float4x4 glmViewMatrix;
 	float4x4 worldMatrix;
+	float4 additionalFloat;
 }
 
 void VS(float3 pos : POSITION, float4 color : COLOR, out float4 FinalColor : COLOR, out float4 FinalPosition : SV_Position)
@@ -1873,35 +1874,62 @@ void VS(float3 pos : POSITION, float4 color : COLOR, out float4 FinalColor : COL
 	float3 CameraPosition = float3(-glmViewMatrix[3][1], -glmViewMatrix[3][2], glmViewMatrix[3][0]);
 	float3 WorldPosition = mul(worldMatrix, float4(pos, 1));
 
-	//if (FinalPosition.z > 10000)
+	//if (FinalPosition.z > additionalFloat.x)
 	//	FinalColor = float4(1, 0, 0, 1);
 
-	//if (distance(CameraPosition, WorldPosition) < 1)
+	if (distance(CameraPosition, WorldPosition) > additionalFloat.x)
+		FinalColor = float4(1, 0, 0, 1);
+
 	//float Difference = abs(-glmViewMatrix[3][1] - 8912.2);
 
 	//if (Difference > 1)
 		//FinalColor = float4(1, 0, 0, 1);
 
-	FinalColor = color;
+	//color.r += additionalFloat.x;
+	//color.r += 0.5;
+	//FinalColor = color;
 }
 
 )";
 
-static void CreateResources()
+struct MyConstBuffer
 {
+	glm::mat4 finalMat;
+	glm::mat4 glmViewMatrix;
+	glm::mat4 worldMatrix;
+	glm::vec4 additionalFloat;
+};
+
+static MyConstBuffer* CostBufferData = new MyConstBuffer();
+
+static void createConstantBuffer(ID3D11Buffer** Buffer)
+{
+	LOG.addToLog("createConstantBuffer begin.", "AddVariableToShader");
 	D3D11_BUFFER_DESC desc;
 	memset(&desc, 0, sizeof(desc));
-	
-	// constant buffer
+
 	desc.Usage = D3D11_USAGE_DEFAULT;
 #ifdef USE_QUADS_NOT_POINTS
 	desc.ByteWidth = 64 * 3;
 #else
-	desc.ByteWidth = 64 * 3;
+	desc.ByteWidth = 64 * 3 + 16; // You must set the ByteWidth value of D3D11_BUFFER_DESC in multiples of 16.
 #endif
 	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	desc.CPUAccessFlags = 0;
-	GPU.getDevice()->CreateBuffer(&desc, NULL, &m_CB);
+	auto result = GPU.getDevice()->CreateBuffer(&desc, NULL, Buffer);
+
+	if (*Buffer == nullptr)
+	{
+		LOG.addToLog("*Buffer == nullptr", "AddVariableToShader");
+		LOG.addToLog("result: " + std::to_string(result), "AddVariableToShader");
+	}
+
+	LOG.addToLog("createConstantBuffer end.", "AddVariableToShader");
+}
+
+static void CreateResources()
+{
+	createConstantBuffer(&m_CB);
 
 	// shaders
 	ID3DBlob* pVSBlob = nullptr;
@@ -2045,19 +2073,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 			LOG.addToLog("adding entry in viewProjectionMatricesBuffers", "screens");
 			LOG.addToLog("viewProjectionMatricesBuffers.size(): " + std::to_string(viewProjectionMatricesBuffers.size()), "screens");
 
-			D3D11_BUFFER_DESC desc;
-			memset(&desc, 0, sizeof(desc));
-
-			// constant buffer
-			desc.Usage = D3D11_USAGE_DEFAULT;
-#ifdef USE_QUADS_NOT_POINTS
-			desc.ByteWidth = 64 * 3;
-#else
-			desc.ByteWidth = 64 * 3;
-#endif
-			desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-			desc.CPUAccessFlags = 0;
-			GPU.getDevice()->CreateBuffer(&desc, NULL, &viewProjectionMatricesBuffers[internalScreenIndex]);
+			createConstantBuffer(&viewProjectionMatricesBuffers[internalScreenIndex]);
 		}
 	}
 
@@ -2110,6 +2126,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 	LOG.addToLog("glmViewMatrix :", glmViewMatrix, "camera");
 	LOG.addToLog("glmWorldMatrix :", glmWorldMatrix, "camera");
 
+	//LOG.addToLog("m_CB update begin.", "AddVariableToShader");
 #ifdef USE_QUADS_NOT_POINTS
 	ctx->UpdateSubresource(m_CB, 0, NULL, glm::value_ptr(glmWorldMatrix), 64, 0);
 	ctx->UpdateSubresource(m_CB, 1, NULL, glm::value_ptr(glmViewMatrix), 128, 0);
@@ -2117,9 +2134,22 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 #else
 	if (internalScreenIndex != -1 || viewProjectionMatricesBuffers.find(internalScreenIndex) == viewProjectionMatricesBuffers.end())
 	{
-		ctx->UpdateSubresource(m_CB, 0, NULL, glm::value_ptr(finalMatrix), 64, 0);
-		ctx->UpdateSubresource(m_CB, 1, NULL, glm::value_ptr(glmViewMatrix), 128, 0);
-		ctx->UpdateSubresource(m_CB, 2, NULL, glm::value_ptr(glmViewMatrix), 192, 0);
+		CostBufferData->finalMat = finalMatrix;
+		CostBufferData->glmViewMatrix = glmViewMatrix;
+		CostBufferData->worldMatrix = glmWorldMatrix;
+		CostBufferData->additionalFloat.x = FloatsToSync["FirstShaderFloat"];
+
+		ctx->UpdateSubresource(m_CB, 0, NULL, CostBufferData, 0, 0);
+
+		//ctx->UpdateSubresource(m_CB, 0, NULL, glm::value_ptr(finalMatrix), 64, 64);
+		//ctx->UpdateSubresource(m_CB, 1, NULL, glm::value_ptr(finalMatrix), 64, 64);
+		//ctx->UpdateSubresource(m_CB, 2, NULL, glm::value_ptr(glmViewMatrix), 64, 64);
+
+		//glm::vec4 DataStorage = glm::vec4(0.0f);
+		//DataStorage.x = 0.5f/*FloatsToSync["FirstShaderFloat"]*/;
+		//ctx->UpdateSubresource(m_CB, 3, NULL, glm::value_ptr(DataStorage), 16, 0);
+
+		//LOG.addToLog("FloatsToSync[\"FirstShaderFloat\"]: " + std::to_string(FloatsToSync["FirstShaderFloat"]), "AddVariableToShader");
 	}
 	else
 	{
@@ -2127,6 +2157,8 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		ctx->UpdateSubresource(viewProjectionMatricesBuffers[internalScreenIndex], 1, NULL, glm::value_ptr(glmViewMatrix), 128, 0);
 		ctx->UpdateSubresource(viewProjectionMatricesBuffers[internalScreenIndex], 2, NULL, glm::value_ptr(glmViewMatrix), 192, 0);
 	}
+
+	//LOG.addToLog("m_CB update end.", "AddVariableToShader");
 	
 #endif
 
