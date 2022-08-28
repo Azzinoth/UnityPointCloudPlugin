@@ -1182,7 +1182,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 {
 	if (FloatsToSync.size() == 0)
 	{
-		FloatsToSync["FirstShaderFloat"] = 0.0f;
+		//FloatsToSync["FirstShaderFloat"] = 0.0f;
 	}
 
 	//requestToDelete = true;
@@ -1877,17 +1877,13 @@ void VS(float3 pos : POSITION, float4 color : COLOR, out float4 FinalColor : COL
 	//if (FinalPosition.z > additionalFloat.x)
 	//	FinalColor = float4(1, 0, 0, 1);
 
-	if (distance(CameraPosition, WorldPosition) > additionalFloat.x)
-		FinalColor = float4(1, 0, 0, 1);
-
-	//float Difference = abs(-glmViewMatrix[3][1] - 8912.2);
-
-	//if (Difference > 1)
+	//if (distance(CameraPosition, WorldPosition) > additionalFloat.x)
 		//FinalColor = float4(1, 0, 0, 1);
+
 
 	//color.r += additionalFloat.x;
 	//color.r += 0.5;
-	//FinalColor = color;
+	FinalColor = color;
 }
 
 )";
