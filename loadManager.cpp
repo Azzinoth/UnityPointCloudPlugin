@@ -297,6 +297,111 @@ void LoadManager::loadFunc()
 #endif
 				}
 			}
+			else if ((currentPath[currentPath.size() - 4] == '.' &&
+					 currentPath[currentPath.size() - 3] == 'n' &&
+					 currentPath[currentPath.size() - 2] == 'p' &&
+					 currentPath[currentPath.size() - 1] == 'y') ||
+
+					 (currentPath[currentPath.size() - 4] == '.' &&
+					 currentPath[currentPath.size() - 3] == 'n' &&
+					 currentPath[currentPath.size() - 2] == 'p' &&
+					 currentPath[currentPath.size() - 1] == 'z'))
+			{
+				cnpy::NpyArray DataVar = cnpy::npz_load(currentPath, "data");
+
+				auto FinalData = DataVar.data_holder.get();
+				size_t Count = DataVar.num_vals;
+				size_t SizePerValue = FinalData->size() / Count;
+
+				struct NumPyPoints
+				{
+				    double X, Y, Z, Uncertainty;
+				};
+
+				std::vector<NumPyPoints> CleanData;
+
+				int Iteration = 0;
+				char* word = new char[8];
+				for (size_t i = 0; i < FinalData->size() / 8; i++)
+				{
+				    for (size_t j = 0; j < 8; j++)
+				    {
+				        word[j] = FinalData->operator[](i * 8 + j);
+				    }
+
+					double tempValue = *reinterpret_cast<double*>(word);
+				    
+				    if (Iteration == 0)
+				    {
+				        CleanData.resize(CleanData.size() + 1);
+				        CleanData.back().X = tempValue;
+
+						currentPointCloud->vertexInfo.resize(currentPointCloud->vertexInfo.size() + 1);
+						currentPointCloud->vertexInfo.back().position.x = tempValue;
+
+						if (newMinX > tempValue)
+							newMinX = tempValue;
+
+						if (newMaxX > tempValue)
+							newMaxX = tempValue;
+				    }
+				    else if (Iteration == 1)
+				    {
+				        CleanData.back().Y = tempValue;
+						currentPointCloud->vertexInfo.back().position.y = tempValue;
+
+						if (newMinY > tempValue)
+							newMinY = tempValue;
+
+						if (newMaxY > tempValue)
+							newMaxY = tempValue;
+				    }
+				    else if (Iteration == 2)
+				    {
+				        CleanData.back().Z = tempValue;
+						currentPointCloud->vertexInfo.back().position.z = tempValue;
+
+						if (newMinZ > tempValue)
+							newMinZ = tempValue;
+
+						if (newMaxZ > tempValue)
+							newMaxZ = tempValue;
+				    }
+				    else if (Iteration == 3)
+				    {
+				        CleanData.back().Uncertainty = tempValue;
+				    }
+
+				    Iteration++;
+				    if (Iteration > 3)
+				        Iteration = 0;
+				    
+				}
+
+				debugLog::getInstance().addToLog("newMinX: " + std::to_string(newMinX), "File_Load_Log");
+				debugLog::getInstance().addToLog("newMinY: " + std::to_string(newMinY), "File_Load_Log");
+				debugLog::getInstance().addToLog("newMinZ: " + std::to_string(newMinZ), "File_Load_Log");
+
+				/*double rangeX = 0.0f;
+				double rangeY = 0.0f;
+				double rangeZ = 0.0f;*/
+
+				/*cnpy::npz_t my_npz = cnpy::npz_load(currentPath);
+				cnpy::NpyArray arr_mv1 = my_npz["wkt"];
+				auto data = arr_mv1.data_holder.get();
+
+				std::string str_data;
+				for (size_t i = 0; i < data->size(); i++)
+				{
+					if (data->operator[](i) != 0)
+						str_data.push_back(data->operator[](i));
+				}
+
+				debugLog::getInstance().addToLog("str_data: " + str_data, "File_Load_Log");
+
+				int y = 0;
+				y++;*/
+			}
 			else
 			{
 				// create the reader

@@ -9,6 +9,7 @@
 #include "comdef.h"
 
 #include "thirdparty/laszip/include/laszip_api.h"
+#include "thirdparty/cnpy/cnpy.h"
 
 void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* unityInterfaces);
 void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload();
