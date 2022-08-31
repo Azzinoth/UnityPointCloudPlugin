@@ -104,10 +104,23 @@ struct ColorInfo
 	unsigned char r, g, b;
 };
 
+struct NumPyPoints
+{
+	double X, Y, Z, Uncertainty;
+};
+
+struct NumPyInfo
+{
+	std::vector<NumPyPoints> LoadedRawData;
+	std::string WKT;
+	std::vector<std::string> AllEPSG;
+};
+
 class pointCloud
 {
 	octree* searchOctree = nullptr;
 public:
+	NumPyInfo* NumPy = nullptr;
 
 #ifdef USE_COMPUTE_SHADER
 	float* InputData_CS = nullptr;

@@ -149,6 +149,95 @@ void copyLAZFileHeader(laszip_header* dest, laszip_header* source)
 	}
 }
 
+std::string GetWKT(std::string FileName, std::string VariableName = "wkt")
+{
+	FILE* fp = fopen(FileName.c_str(), "rb");
+
+	while (1) {
+		std::vector<char> local_header(30);
+		size_t header_res = fread(&local_header[0], sizeof(char), 30, fp);
+		if (header_res != 30)
+			throw std::runtime_error("npz_load: failed fread");
+
+		//if we've reached the global header, stop reading
+		if (local_header[2] != 0x03 || local_header[3] != 0x04) break;
+
+		//read in the variable name
+		uint16_t name_len = *(uint16_t*)&local_header[26];
+		std::string vname(name_len, ' ');
+		size_t vname_res = fread(&vname[0], sizeof(char), name_len, fp);
+		if (vname_res != name_len)
+			throw std::runtime_error("npz_load: failed fread");
+		vname.erase(vname.end() - 4, vname.end()); //erase the lagging .npy
+
+		//read in the extra field
+		uint16_t extra_field_len = *(uint16_t*)&local_header[28];
+		fseek(fp, extra_field_len, SEEK_CUR); //skip past the extra field
+
+		uint16_t compr_method = *reinterpret_cast<uint16_t*>(&local_header[0] + 8);
+		uint32_t compr_bytes = *reinterpret_cast<uint32_t*>(&local_header[0] + 18);
+		uint32_t uncompr_bytes = *reinterpret_cast<uint32_t*>(&local_header[0] + 22);
+
+		if (vname == VariableName) {
+			std::vector<size_t> shape;
+			cnpy::NpyArray arr(shape, compr_bytes, false);
+			size_t nread = fread(arr.data<char>(), 1, arr.num_bytes(), fp);
+
+			auto data = arr.data_holder.get();
+
+			std::string WKTData;
+			for (size_t i = 0; i < data->size(); i++)
+			{
+				if (data->operator[](i) != 0)
+					WKTData.push_back(data->operator[](i));
+			}
+
+			fclose(fp);
+			return WKTData;
+		}
+		else {
+			//skip past the data
+			uint32_t size = *(uint32_t*)&local_header[22];
+			fseek(fp, size, SEEK_CUR);
+		}
+	}
+
+	fclose(fp);
+}
+
+std::vector<std::string> GetEPSG(std::string TotalString)
+{
+	std::vector<std::string> result;
+	static std::string LookingFor = "AUTHORITY[\"EPSG\",\"";
+
+	while (TotalString.find(LookingFor) != std::string::npos)
+	{
+		size_t CurrentStartIndex = TotalString.find(LookingFor) + LookingFor.size();
+		size_t CurrentEndIndex = 0;
+
+		for (size_t i = CurrentStartIndex + 1; i < TotalString.size(); i++)
+		{
+			if (TotalString[i] == '\"')
+			{
+				CurrentEndIndex = i;
+				break;
+			}
+		}
+
+		if (CurrentEndIndex != 0)
+		{
+			std::string Temp = TotalString.substr(CurrentStartIndex, CurrentEndIndex - CurrentStartIndex);
+
+			TotalString.erase(CurrentStartIndex - LookingFor.size(), CurrentEndIndex - (CurrentStartIndex - LookingFor.size()) + 1);
+
+			result.push_back(Temp);
+		}
+
+	}
+
+	return result;
+}
+
 void LoadManager::loadFunc()
 {
 	while (true)
@@ -307,18 +396,21 @@ void LoadManager::loadFunc()
 					 currentPath[currentPath.size() - 2] == 'p' &&
 					 currentPath[currentPath.size() - 1] == 'z'))
 			{
+				currentPointCloud->NumPy = new NumPyInfo();
+				currentPointCloud->NumPy->WKT = GetWKT(currentPath);
+				currentPointCloud->NumPy->WKT.erase(currentPointCloud->NumPy->WKT.begin(),
+					currentPointCloud->NumPy->WKT.begin() + currentPointCloud->NumPy->WKT.find("PROJCS"));
+
+				currentPointCloud->NumPy->AllEPSG = GetEPSG(currentPointCloud->NumPy->WKT);
+
+				debugLog::getInstance().addToLog("EPSG: " + currentPointCloud->NumPy->AllEPSG.back(), "EPSG");
+				currentPointCloud->EPSG = atoi(currentPointCloud->NumPy->AllEPSG.back().c_str());
+
 				cnpy::NpyArray DataVar = cnpy::npz_load(currentPath, "data");
 
 				auto FinalData = DataVar.data_holder.get();
 				size_t Count = DataVar.num_vals;
 				size_t SizePerValue = FinalData->size() / Count;
-
-				struct NumPyPoints
-				{
-				    double X, Y, Z, Uncertainty;
-				};
-
-				std::vector<NumPyPoints> CleanData;
 
 				int Iteration = 0;
 				char* word = new char[8];
@@ -333,8 +425,8 @@ void LoadManager::loadFunc()
 				    
 				    if (Iteration == 0)
 				    {
-				        CleanData.resize(CleanData.size() + 1);
-				        CleanData.back().X = tempValue;
+						currentPointCloud->NumPy->LoadedRawData.resize(currentPointCloud->NumPy->LoadedRawData.size() + 1);
+						currentPointCloud->NumPy->LoadedRawData.back().X = tempValue;
 
 						currentPointCloud->vertexInfo.resize(currentPointCloud->vertexInfo.size() + 1);
 						currentPointCloud->vertexInfo.back().position.x = tempValue;
@@ -342,65 +434,85 @@ void LoadManager::loadFunc()
 						if (newMinX > tempValue)
 							newMinX = tempValue;
 
-						if (newMaxX > tempValue)
+						if (newMaxX < tempValue)
 							newMaxX = tempValue;
 				    }
 				    else if (Iteration == 1)
 				    {
-				        CleanData.back().Y = tempValue;
+						currentPointCloud->NumPy->LoadedRawData.back().Y = tempValue;
 						currentPointCloud->vertexInfo.back().position.y = tempValue;
 
 						if (newMinY > tempValue)
 							newMinY = tempValue;
 
-						if (newMaxY > tempValue)
+						if (newMaxY < tempValue)
 							newMaxY = tempValue;
 				    }
 				    else if (Iteration == 2)
 				    {
-				        CleanData.back().Z = tempValue;
+						currentPointCloud->NumPy->LoadedRawData.back().Z = tempValue;
 						currentPointCloud->vertexInfo.back().position.z = tempValue;
 
 						if (newMinZ > tempValue)
 							newMinZ = tempValue;
 
-						if (newMaxZ > tempValue)
+						if (newMaxZ < tempValue)
 							newMaxZ = tempValue;
 				    }
 				    else if (Iteration == 3)
 				    {
-				        CleanData.back().Uncertainty = tempValue;
+						currentPointCloud->NumPy->LoadedRawData.back().Uncertainty = tempValue;
 				    }
 
 				    Iteration++;
 				    if (Iteration > 3)
 				        Iteration = 0;
-				    
+				}
+
+				rangeX = newMaxX - newMinX;
+				rangeY = newMaxY - newMinY;
+				rangeZ = newMaxZ - newMinZ;
+
+				currentPointCloud->adjustment.x = -newMinX;
+				currentPointCloud->adjustment.y = -newMinY;
+				currentPointCloud->adjustment.z = -newMinZ;
+
+				newMinX = DBL_MAX;
+				newMaxX = -DBL_MAX;
+				newMinY = DBL_MAX;
+				newMaxY = -DBL_MAX;
+				newMinZ = DBL_MAX;
+				newMaxZ = -DBL_MAX;
+
+				for (int i = 0; i < currentPointCloud->vertexInfo.size(); i++)
+				{
+					currentPointCloud->vertexInfo[i].position.x = currentPointCloud->vertexInfo[i].position.x + currentPointCloud->adjustment.x;
+					currentPointCloud->vertexInfo[i].position.y = currentPointCloud->vertexInfo[i].position.y + currentPointCloud->adjustment.y;
+					currentPointCloud->vertexInfo[i].position.z = currentPointCloud->vertexInfo[i].position.z + currentPointCloud->adjustment.z;
+					
+					if (newMinX > currentPointCloud->vertexInfo[i].position.x)
+						newMinX = currentPointCloud->vertexInfo[i].position.x;
+
+					if (newMaxX < currentPointCloud->vertexInfo[i].position.x)
+						newMaxX = currentPointCloud->vertexInfo[i].position.x;
+
+					if (newMinY > currentPointCloud->vertexInfo[i].position.y)
+						newMinY = currentPointCloud->vertexInfo[i].position.y;
+
+					if (newMaxY < currentPointCloud->vertexInfo[i].position.y)
+						newMaxY = currentPointCloud->vertexInfo[i].position.y;
+
+					if (newMinZ > currentPointCloud->vertexInfo[i].position.z)
+						newMinZ = currentPointCloud->vertexInfo[i].position.z;
+
+					if (newMaxZ < currentPointCloud->vertexInfo[i].position.z)
+						newMaxZ = currentPointCloud->vertexInfo[i].position.z;
+				
 				}
 
 				debugLog::getInstance().addToLog("newMinX: " + std::to_string(newMinX), "File_Load_Log");
 				debugLog::getInstance().addToLog("newMinY: " + std::to_string(newMinY), "File_Load_Log");
 				debugLog::getInstance().addToLog("newMinZ: " + std::to_string(newMinZ), "File_Load_Log");
-
-				/*double rangeX = 0.0f;
-				double rangeY = 0.0f;
-				double rangeZ = 0.0f;*/
-
-				/*cnpy::npz_t my_npz = cnpy::npz_load(currentPath);
-				cnpy::NpyArray arr_mv1 = my_npz["wkt"];
-				auto data = arr_mv1.data_holder.get();
-
-				std::string str_data;
-				for (size_t i = 0; i < data->size(); i++)
-				{
-					if (data->operator[](i) != 0)
-						str_data.push_back(data->operator[](i));
-				}
-
-				debugLog::getInstance().addToLog("str_data: " + str_data, "File_Load_Log");
-
-				int y = 0;
-				y++;*/
 			}
 			else
 			{
@@ -1037,11 +1149,61 @@ void SaveManager::saveFunc()
 		{
 			newJobReady = false;
 
-			// if file is in our own format
-			if (currentPath[currentPath.size() - 4] == '.' &&
-				currentPath[currentPath.size() - 3] == 'c' &&
+			if (currentPointCloud->NumPy != nullptr || 
+				(currentPath[currentPath.size() - 4] == '.' &&
+				currentPath[currentPath.size() - 3] == 'n' &&
 				currentPath[currentPath.size() - 2] == 'p' &&
-				currentPath[currentPath.size() - 1] == 'c')
+				currentPath[currentPath.size() - 1] == 'y') ||
+				(currentPath[currentPath.size() - 4] == '.' &&
+				currentPath[currentPath.size() - 3] == 'n' &&
+				currentPath[currentPath.size() - 2] == 'p' &&
+				currentPath[currentPath.size() - 1] == 'z'))
+			{
+				std::vector<char> RawData;
+				int test = sizeof(double);
+				char* TempArray = new char[sizeof(double)];
+				for (size_t i = 0; i < currentPointCloud->NumPy->LoadedRawData.size(); i++)
+				{
+					if (currentPointCloud->vertexInfo[i].position[0] == DELETED_POINTS_COORDINATE &&
+						currentPointCloud->vertexInfo[i].position[1] == DELETED_POINTS_COORDINATE &&
+						currentPointCloud->vertexInfo[i].position[2] == DELETED_POINTS_COORDINATE)
+					{
+						continue;
+					}
+
+					TempArray = reinterpret_cast<char*>(&currentPointCloud->NumPy->LoadedRawData[i].X);
+					for (size_t j = 0; j < sizeof(double); j++)
+					{
+						RawData.push_back(TempArray[j]);
+					}
+
+					TempArray = reinterpret_cast<char*>(&currentPointCloud->NumPy->LoadedRawData[i].Y);
+					for (size_t j = 0; j < sizeof(double); j++)
+					{
+						RawData.push_back(TempArray[j]);
+					}
+
+					TempArray = reinterpret_cast<char*>(&currentPointCloud->NumPy->LoadedRawData[i].Z);
+					for (size_t j = 0; j < sizeof(double); j++)
+					{
+						RawData.push_back(TempArray[j]);
+					}
+
+					TempArray = reinterpret_cast<char*>(&currentPointCloud->NumPy->LoadedRawData[i].Uncertainty);
+					for (size_t j = 0; j < sizeof(double); j++)
+					{
+						RawData.push_back(TempArray[j]);
+					}
+				}
+
+				cnpy::npz_save(currentPath, "wkt", currentPointCloud->NumPy->WKT.data(), { currentPointCloud->NumPy->WKT.size() }, "w");
+				cnpy::npz_save(currentPath, "data", RawData.data(), { RawData.size() }, "a");
+			}
+			// if file is in our own format
+			else if (currentPath[currentPath.size() - 4] == '.' &&
+					 currentPath[currentPath.size() - 3] == 'c' &&
+					 currentPath[currentPath.size() - 2] == 'p' &&
+					 currentPath[currentPath.size() - 1] == 'c')
 			{
 
 			}
