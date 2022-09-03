@@ -163,13 +163,35 @@ namespace cnpy {
         }
 
         std::vector<char> npy_header = create_npy_header<T>(shape);
-
         size_t nels = std::accumulate(shape.begin(),shape.end(),1,std::multiplies<size_t>());
-        size_t nbytes = nels*sizeof(T) + npy_header.size();
+
+        size_t SizeOfT = sizeof(T);
+        if (typeid(T) == typeid(std::string))
+        {
+            SizeOfT = 4;
+        }
+        size_t nbytes = nels * SizeOfT + npy_header.size();
 
         //get the CRC of the data to be added
         uint32_t crc = crc32(0L,(uint8_t*)&npy_header[0],npy_header.size());
-        crc = crc32(crc,(uint8_t*)data,nels*sizeof(T));
+
+        if (typeid(T) == typeid(std::string))
+        {
+            char NullChar = 0;
+            std::string* StringData = reinterpret_cast<std::string*>((void*)data);
+            for (size_t i = 0; i < StringData->size(); i+=4)
+            {
+                StringData->insert(StringData->begin() + i + 1, 0);
+                StringData->insert(StringData->begin() + i + 1, 0);
+                StringData->insert(StringData->begin() + i + 1, 0);
+            }
+
+            crc = crc32(crc, (uint8_t*)StringData->data(), nels * SizeOfT);
+        }
+        else
+        {
+            crc = crc32(crc, (uint8_t*)data, nels * SizeOfT);
+        }
 
         //build the local header
         std::vector<char> local_header;
@@ -214,7 +236,19 @@ namespace cnpy {
         //write everything
         fwrite(&local_header[0],sizeof(char),local_header.size(),fp);
         fwrite(&npy_header[0],sizeof(char),npy_header.size(),fp);
-        fwrite(data,sizeof(T),nels,fp);
+
+
+        if (typeid(T) == typeid(std::string))
+        {
+            char NullChar = 0;
+            std::string StringData = *reinterpret_cast<std::string*>((void*)data);
+            fwrite(StringData.data(), 1, StringData.size(), fp);
+        }
+        else
+        {
+            fwrite(data, SizeOfT, nels, fp);
+        }
+        
         fwrite(&global_header[0],sizeof(char),global_header.size(),fp);
         fwrite(&footer[0],sizeof(char),footer.size(),fp);
         fclose(fp);
@@ -238,14 +272,25 @@ namespace cnpy {
         dict += "{'descr': '";
         dict += BigEndianTest();
         dict += map_type(typeid(T));
-        dict += std::to_string(sizeof(T));
-        dict += "', 'fortran_order': False, 'shape': (";
-        dict += std::to_string(shape[0]);
-        for(size_t i = 1;i < shape.size();i++) {
-            dict += ", ";
-            dict += std::to_string(shape[i]);
+        if (typeid(T) == typeid(std::string))
+        {
+            dict += std::to_string(shape[0]);
         }
-        if(shape.size() == 1) dict += ",";
+        else
+        {
+            dict += std::to_string(sizeof(T));
+        }
+        
+        dict += "', 'fortran_order': False, 'shape': (";
+        if (typeid(T) != typeid(std::string))
+        {
+            dict += std::to_string(shape[0]);
+            for (size_t i = 1; i < shape.size(); i++) {
+                dict += ", ";
+                dict += std::to_string(shape[i]);
+            }
+            if (shape.size() == 1) dict += ",";
+        }
         dict += "), }";
         //pad with spaces so that preamble+dict is modulo 16 bytes. preamble is 10 bytes. dict needs to end with \n
         int remainder = 16 - (10 + dict.size()) % 16;
@@ -262,8 +307,6 @@ namespace cnpy {
 
         return header;
     }
-
-
 }
 
 #endif

@@ -238,6 +238,73 @@ std::vector<std::string> GetEPSG(std::string TotalString)
 	return result;
 }
 
+NumPyMinMax GetMinMax(std::string FileName, std::string VariableName = "minmax")
+{
+	cnpy::NpyArray MinMaxNpy = cnpy::npz_load(FileName, "minmax");
+	auto MinMaxNpyRawData = MinMaxNpy.data_holder.get();
+
+	NumPyMinMax Result;
+
+	char* Word = new char[8];
+	size_t CurrentIndex = 0;
+	for (size_t i = 0; i < 8; i++)
+	{
+		Word[i] = MinMaxNpyRawData->operator[](CurrentIndex + i);
+	}
+	Result.MinX = *reinterpret_cast<double*>(Word);
+
+	CurrentIndex = 8;
+	for (size_t i = 0; i < 8; i++)
+	{
+		Word[i] = MinMaxNpyRawData->operator[](CurrentIndex + i);
+	}
+	Result.MinY = *reinterpret_cast<double*>(Word);
+
+	CurrentIndex = 16;
+	for (size_t i = 0; i < 8; i++)
+	{
+		Word[i] = MinMaxNpyRawData->operator[](CurrentIndex + i);
+	}
+	Result.MinZ = *reinterpret_cast<double*>(Word);
+
+	CurrentIndex = 24;
+	for (size_t i = 0; i < 8; i++)
+	{
+		Word[i] = MinMaxNpyRawData->operator[](CurrentIndex + i);
+	}
+	Result.MinUncertainty = *reinterpret_cast<double*>(Word);
+
+	CurrentIndex = 32;
+	for (size_t i = 0; i < 8; i++)
+	{
+		Word[i] = MinMaxNpyRawData->operator[](CurrentIndex + i);
+	}
+	Result.MaxX = *reinterpret_cast<double*>(Word);
+
+	CurrentIndex = 40;
+	for (size_t i = 0; i < 8; i++)
+	{
+		Word[i] = MinMaxNpyRawData->operator[](CurrentIndex + i);
+	}
+	Result.MaxY = *reinterpret_cast<double*>(Word);
+
+	CurrentIndex = 48;
+	for (size_t i = 0; i < 8; i++)
+	{
+		Word[i] = MinMaxNpyRawData->operator[](CurrentIndex + i);
+	}
+	Result.MaxZ = *reinterpret_cast<double*>(Word);
+
+	CurrentIndex = 56;
+	for (size_t i = 0; i < 8; i++)
+	{
+		Word[i] = MinMaxNpyRawData->operator[](CurrentIndex + i);
+	}
+	Result.MaxUncertainty = *reinterpret_cast<double*>(Word);
+
+	return Result;
+}
+
 void LoadManager::loadFunc()
 {
 	while (true)
@@ -402,6 +469,7 @@ void LoadManager::loadFunc()
 					currentPointCloud->NumPy->WKT.begin() + currentPointCloud->NumPy->WKT.find("PROJCS"));
 
 				currentPointCloud->NumPy->AllEPSG = GetEPSG(currentPointCloud->NumPy->WKT);
+				currentPointCloud->NumPy->MinMax = GetMinMax(currentPath);
 
 				debugLog::getInstance().addToLog("EPSG: " + currentPointCloud->NumPy->AllEPSG.back(), "EPSG");
 				currentPointCloud->EPSG = atoi(currentPointCloud->NumPy->AllEPSG.back().c_str());
@@ -1159,7 +1227,7 @@ void SaveManager::saveFunc()
 				currentPath[currentPath.size() - 2] == 'p' &&
 				currentPath[currentPath.size() - 1] == 'z'))
 			{
-				std::vector<char> RawData;
+				/*std::vector<char> RawData;
 				int test = sizeof(double);
 				char* TempArray = new char[sizeof(double)];
 				for (size_t i = 0; i < currentPointCloud->NumPy->LoadedRawData.size(); i++)
@@ -1194,10 +1262,28 @@ void SaveManager::saveFunc()
 					{
 						RawData.push_back(TempArray[j]);
 					}
+				}*/
+
+				std::vector<double> FinalData;
+
+				for (size_t i = 0; i < currentPointCloud->NumPy->LoadedRawData.size(); i++)
+				{
+					if (currentPointCloud->vertexInfo[i].position[0] == DELETED_POINTS_COORDINATE &&
+						currentPointCloud->vertexInfo[i].position[1] == DELETED_POINTS_COORDINATE &&
+						currentPointCloud->vertexInfo[i].position[2] == DELETED_POINTS_COORDINATE)
+					{
+						continue;
+					}
+
+					FinalData.push_back(currentPointCloud->NumPy->LoadedRawData[i].X);
+					FinalData.push_back(currentPointCloud->NumPy->LoadedRawData[i].Y);
+					FinalData.push_back(currentPointCloud->NumPy->LoadedRawData[i].Z);
+					FinalData.push_back(currentPointCloud->NumPy->LoadedRawData[i].Uncertainty);
 				}
 
-				cnpy::npz_save(currentPath, "wkt", currentPointCloud->NumPy->WKT.data(), { currentPointCloud->NumPy->WKT.size() }, "w");
-				cnpy::npz_save(currentPath, "data", RawData.data(), { RawData.size() }, "a");
+				cnpy::npz_save(currentPath, "wkt", &currentPointCloud->NumPy->WKT, { currentPointCloud->NumPy->WKT.size() }, "w");
+				cnpy::npz_save(currentPath, "data", FinalData.data(), { FinalData.size() / 4, 4 }, "a");
+				cnpy::npz_save(currentPath, "minmax", reinterpret_cast<double*>(&currentPointCloud->NumPy->MinMax), { 2, 4 }, "a");
 			}
 			// if file is in our own format
 			else if (currentPath[currentPath.size() - 4] == '.' &&

@@ -41,6 +41,8 @@ char cnpy::map_type(const std::type_info& t)
     if(t == typeid(std::complex<double>) ) return 'c';
     if(t == typeid(std::complex<long double>) ) return 'c';
 
+    if (t == typeid(std::string)) return 'U';
+
     else return '?';
 }
 
@@ -335,6 +337,3 @@ cnpy::NpyArray cnpy::npy_load(std::string fname) {
     fclose(fp);
     return arr;
 }
-
-
-

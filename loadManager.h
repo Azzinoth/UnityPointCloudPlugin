@@ -109,11 +109,25 @@ struct NumPyPoints
 	double X, Y, Z, Uncertainty;
 };
 
+struct NumPyMinMax
+{
+	double MinX = 0.0;
+	double MinY = 0.0;
+	double MinZ = 0.0;
+	double MinUncertainty = 0.0;
+
+	double MaxX = 0.0;
+	double MaxY = 0.0;
+	double MaxZ = 0.0;
+	double MaxUncertainty = 0.0;
+};
+
 struct NumPyInfo
 {
 	std::vector<NumPyPoints> LoadedRawData;
 	std::string WKT;
 	std::vector<std::string> AllEPSG;
+	NumPyMinMax MinMax;
 };
 
 class pointCloud
