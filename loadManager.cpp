@@ -480,6 +480,9 @@ void LoadManager::loadFunc()
 				size_t Count = DataVar.num_vals;
 				size_t SizePerValue = FinalData->size() / Count;
 
+				double UncertaintyMin = DBL_MAX;
+				double UncertaintyMax = -DBL_MAX;
+
 				int Iteration = 0;
 				char* word = new char[8];
 				for (size_t i = 0; i < FinalData->size() / 8; i++)
@@ -530,6 +533,12 @@ void LoadManager::loadFunc()
 				    else if (Iteration == 3)
 				    {
 						currentPointCloud->NumPy->LoadedRawData.back().Uncertainty = tempValue;
+
+						if (UncertaintyMin > tempValue)
+							UncertaintyMin = tempValue;
+
+						if (UncertaintyMax < tempValue)
+							UncertaintyMax = tempValue;
 				    }
 
 				    Iteration++;
@@ -551,6 +560,10 @@ void LoadManager::loadFunc()
 				newMaxY = -DBL_MAX;
 				newMinZ = DBL_MAX;
 				newMaxZ = -DBL_MAX;
+
+				double UncertaintyRange = UncertaintyMax - UncertaintyMin;
+				glm::vec3 CertainPointsColor = glm::vec3(1.0f);
+				glm::vec3 UnCertainPointsColor = glm::vec3(1.0f, 0.0f, 0.0f);
 
 				for (int i = 0; i < currentPointCloud->vertexInfo.size(); i++)
 				{
@@ -575,7 +588,15 @@ void LoadManager::loadFunc()
 
 					if (newMaxZ < currentPointCloud->vertexInfo[i].position.z)
 						newMaxZ = currentPointCloud->vertexInfo[i].position.z;
-				
+
+					double HowCertainPointIs = (UncertaintyMax - currentPointCloud->NumPy->LoadedRawData[i].Uncertainty) / UncertaintyRange;
+					glm::vec3 ColorMixFactor = glm::vec3(HowCertainPointIs);
+
+					glm::vec3 Color = CertainPointsColor * ColorMixFactor + UnCertainPointsColor * (glm::vec3(1.0f) - ColorMixFactor);
+
+					currentPointCloud->vertexInfo[i].color[0] = unsigned char(Color.x * 255);
+					currentPointCloud->vertexInfo[i].color[1] = unsigned char(Color.y * 255);
+					currentPointCloud->vertexInfo[i].color[2] = unsigned char(Color.z * 255);
 				}
 
 				debugLog::getInstance().addToLog("newMinX: " + std::to_string(newMinX), "File_Load_Log");

@@ -19,7 +19,7 @@ std::string getVersion()
 	return result;
 }
 
-static std::string currentVersion = "version 2022.8.31.18530";
+static std::string currentVersion = "version 2022.9.6.20145";
 
 static ID3D11Buffer* m_CB = nullptr;
 static ID3D11VertexShader* m_VertexShader;

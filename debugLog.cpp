@@ -24,7 +24,7 @@ std::string debugLog::vec3ToString(glm::vec3 vector)
 
 void debugLog::addToLog(std::string logEntry, std::string topic)
 {
-	std::fstream* file = nullptr;
+	/*std::fstream* file = nullptr;
 	if (openedFiles.find(topic) != openedFiles.end())
 	{
 		file = openedFiles[topic];
@@ -38,7 +38,7 @@ void debugLog::addToLog(std::string logEntry, std::string topic)
 
 	logEntry += '\n';
 	file->write(logEntry.c_str(), logEntry.size());
-	file->flush();
+	file->flush();*/
 }
 
 void debugLog::addToLog(std::string logEntry, glm::vec3 vector, std::string topic)
