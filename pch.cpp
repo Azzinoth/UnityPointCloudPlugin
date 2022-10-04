@@ -19,7 +19,7 @@ std::string getVersion()
 	return result;
 }
 
-static std::string currentVersion = "version 2022.9.6.20145";
+static std::string currentVersion = "version 2022.10.4.17534";
 
 static ID3D11Buffer* m_CB = nullptr;
 static ID3D11VertexShader* m_VertexShader;
@@ -1799,13 +1799,21 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestPointCloudAdju
 	adjustment[3] = currentPointCloud->initialXShift;
 	adjustment[4] = currentPointCloud->initialZShift;
 
-	adjustment[5] = currentPointCloud->getSearchOctree()->root->nodeAABB.min.x;
+	adjustment[5] = currentPointCloud->min.x;
+	adjustment[6] = currentPointCloud->min.y;
+	adjustment[7] = currentPointCloud->min.z;
+
+	adjustment[8] = currentPointCloud->max.x;
+	adjustment[9] = currentPointCloud->max.y;
+	adjustment[10] = currentPointCloud->max.z;
+
+	/*adjustment[5] = currentPointCloud->getSearchOctree()->root->nodeAABB.min.x;
 	adjustment[6] = currentPointCloud->getSearchOctree()->root->nodeAABB.min.y;
 	adjustment[7] = currentPointCloud->getSearchOctree()->root->nodeAABB.min.z;
 
 	adjustment[8] = currentPointCloud->getSearchOctree()->root->nodeAABB.max.x;
 	adjustment[9] = currentPointCloud->getSearchOctree()->root->nodeAABB.max.y;
-	adjustment[10] = currentPointCloud->getSearchOctree()->root->nodeAABB.max.z;
+	adjustment[10] = currentPointCloud->getSearchOctree()->root->nodeAABB.max.z;*/
 
 	adjustment[11] = currentPointCloud->EPSG;
 	adjustment[12] = currentPointCloud->getApproximateGroundLevel();

@@ -508,20 +508,10 @@ void LoadManager::loadFunc()
 						if (newMaxX < tempValue)
 							newMaxX = tempValue;
 				    }
+					// Z and Y is flipped.
 				    else if (Iteration == 1)
 				    {
 						currentPointCloud->NumPy->LoadedRawData.back().Y = tempValue;
-						currentPointCloud->vertexInfo.back().position.y = tempValue;
-
-						if (newMinY > tempValue)
-							newMinY = tempValue;
-
-						if (newMaxY < tempValue)
-							newMaxY = tempValue;
-				    }
-				    else if (Iteration == 2)
-				    {
-						currentPointCloud->NumPy->LoadedRawData.back().Z = tempValue;
 						currentPointCloud->vertexInfo.back().position.z = tempValue;
 
 						if (newMinZ > tempValue)
@@ -529,6 +519,18 @@ void LoadManager::loadFunc()
 
 						if (newMaxZ < tempValue)
 							newMaxZ = tempValue;
+				    }
+				    else if (Iteration == 2)
+				    {
+						currentPointCloud->NumPy->LoadedRawData.back().Z = tempValue;
+						currentPointCloud->vertexInfo.back().position.y = tempValue;
+
+						if (newMinY > tempValue)
+							newMinY = tempValue;
+
+						if (newMaxY < tempValue)
+							newMaxY = tempValue;
+						
 				    }
 				    else if (Iteration == 3)
 				    {
@@ -550,9 +552,9 @@ void LoadManager::loadFunc()
 				rangeY = newMaxY - newMinY;
 				rangeZ = newMaxZ - newMinZ;
 
-				currentPointCloud->adjustment.x = -newMinX;
-				currentPointCloud->adjustment.y = -newMinY;
-				currentPointCloud->adjustment.z = -newMinZ;
+				currentPointCloud->adjustment.x = newMinX;
+				currentPointCloud->adjustment.y = newMinY;
+				currentPointCloud->adjustment.z = newMinZ;
 
 				newMinX = DBL_MAX;
 				newMaxX = -DBL_MAX;
@@ -567,9 +569,9 @@ void LoadManager::loadFunc()
 
 				for (int i = 0; i < currentPointCloud->vertexInfo.size(); i++)
 				{
-					currentPointCloud->vertexInfo[i].position.x = currentPointCloud->vertexInfo[i].position.x + currentPointCloud->adjustment.x;
-					currentPointCloud->vertexInfo[i].position.y = currentPointCloud->vertexInfo[i].position.y + currentPointCloud->adjustment.y;
-					currentPointCloud->vertexInfo[i].position.z = currentPointCloud->vertexInfo[i].position.z + currentPointCloud->adjustment.z;
+					currentPointCloud->vertexInfo[i].position.x = currentPointCloud->vertexInfo[i].position.x - currentPointCloud->adjustment.x;
+					currentPointCloud->vertexInfo[i].position.y = currentPointCloud->vertexInfo[i].position.y - currentPointCloud->adjustment.y;
+					currentPointCloud->vertexInfo[i].position.z = currentPointCloud->vertexInfo[i].position.z - currentPointCloud->adjustment.z;
 					
 					if (newMinX > currentPointCloud->vertexInfo[i].position.x)
 						newMinX = currentPointCloud->vertexInfo[i].position.x;
