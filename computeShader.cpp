@@ -154,6 +154,8 @@ int getComputeShaderResultCounter(ID3D11Device* pDevice, ID3D11UnorderedAccessVi
 	//LOG.addToLog("counter_: " + std::to_string(test), "computeShader");
 	ctx->Unmap(buffer, 0);
 
+	ctx->Release();
+
 	return result;
 }
 

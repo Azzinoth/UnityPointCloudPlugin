@@ -24,7 +24,10 @@ std::string debugLog::vec3ToString(glm::vec3 vector)
 
 void debugLog::addToLog(std::string logEntry, std::string topic)
 {
-	/*std::fstream* file = nullptr;
+	if (DisabledTopics.find(topic) != DisabledTopics.end())
+		return;
+
+	std::fstream* file = nullptr;
 	if (openedFiles.find(topic) != openedFiles.end())
 	{
 		file = openedFiles[topic];
@@ -38,7 +41,7 @@ void debugLog::addToLog(std::string logEntry, std::string topic)
 
 	logEntry += '\n';
 	file->write(logEntry.c_str(), logEntry.size());
-	file->flush();*/
+	file->flush();
 }
 
 void debugLog::addToLog(std::string logEntry, glm::vec3 vector, std::string topic)
@@ -62,6 +65,11 @@ void debugLog::addToLog(std::string logEntry, glm::mat4 matrix, std::string topi
 {
 	logEntry += mat4ToString(matrix);
 	addToLog(logEntry, topic);
+}
+
+void debugLog::DisableTopicFileOutput(std::string TopicToDisable)
+{
+	DisabledTopics[TopicToDisable] = true;
 }
 
 DX11GPU* DX11GPU::_instance = nullptr;

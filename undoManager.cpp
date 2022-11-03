@@ -68,6 +68,7 @@ void undoManager::undo(int actionsToUndo)
 	ctx->UpdateSubresource(currentPointCloud->mainVB, 0, NULL, currentPointCloud->vertexInfo.data(), currentPointCloud->getPointCount() * kVertexSize, currentPointCloud->getPointCount() * kVertexSize);
 #endif // USE_COMPUTE_SHADER
 
+	ctx->Release();
 	undoActionWasApplied = true;
 }
 

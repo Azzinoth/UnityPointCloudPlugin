@@ -19,7 +19,7 @@ std::string getVersion()
 	return result;
 }
 
-static std::string currentVersion = "version 2022.10.4.17534";
+static std::string currentVersion = "version 2022.11.3.17700";
 
 static ID3D11Buffer* m_CB = nullptr;
 static ID3D11VertexShader* m_VertexShader;
@@ -1180,6 +1180,11 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ValidatePointCloudGMF
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity(char* projectFilePath)
 {
+	LOG.DisableTopicFileOutput("camera");
+	LOG.DisableTopicFileOutput("precision");
+	LOG.DisableTopicFileOutput("screens");
+	LOG.DisableTopicFileOutput("renderLog");
+
 	if (FloatsToSync.size() == 0)
 	{
 		//FloatsToSync["FirstShaderFloat"] = 0.0f;
@@ -1622,6 +1627,13 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 		ctx->UpdateSubresource(pointCloud->intermediateVB, 0, &dbox, pointCloud->vertexInfo.data() + minIndex, pointCloud->getPointCount() * kVertexSize, pointCloud->getPointCount() * kVertexSize);
 		ctx->CopySubresourceRegion(pointCloud->mainVB, 0, box.left, 0, 0, pointCloud->intermediateVB, 0, &dbox);
 	}
+	else
+	{
+		if (UNDO_MANAGER.undoActionWasApplied)
+		{
+			UNDO_MANAGER.undoActionWasApplied = false;
+		}
+	}
 }
 
 static glm::vec3 lastDeletionCenter = glm::vec3(-10000.0f);
@@ -1651,8 +1663,10 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 	lastDeletionSize = size;
 	lastDeletionCenter = centerOfBrush;
 
-	//LOG.addToLog("line: " + std::to_string(__LINE__), "linesHited");
-	//LOG.addToLog("thread: " + std::to_string(GetCurrentThreadId()), "linesHited");
+	LOG.addToLog("function: " + std::string(__FUNCTION__), "Threads");
+	LOG.addToLog("line: " + std::to_string(__LINE__), "Threads");
+	LOG.addToLog("thread: " + std::to_string(GetCurrentThreadId()), "Threads");
+	LOG.addToLog("=========================================", "Threads");
 
 	/*bool expected = true;
 	if (!requestToDelete.compare_exchange_strong(expected, false))
@@ -1663,6 +1677,11 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 
 	if (GetTickCount() - timeLastTimeCall < 20)
 	{
+		if (UNDO_MANAGER.undoActionWasApplied)
+		{
+			UNDO_MANAGER.undoActionWasApplied = false;
+		}
+
 		//LOG.addToLog("denial onDrawDeletePointsinGPUMem", "deleteEvents");
 		return 0;
 	}
@@ -1752,6 +1771,7 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 			ID3D11DeviceContext* ctx = NULL;
 			GPU.getDevice()->GetImmediateContext(&ctx);
 			onDrawDeletePointsinGPUMem(pointClouds[i], ctx);
+			ctx->Release();
 		}
 	}
 
@@ -2419,6 +2439,11 @@ static void Render()
 		renderThreads[currentThread]++;
 		LOG.addToLog("render thread: " + std::to_string(GetCurrentThreadId()), "camera");
 	}*/
+
+	LOG.addToLog("function: " + std::string(__FUNCTION__), "Threads");
+	LOG.addToLog("line: " + std::to_string(__LINE__), "Threads");
+	LOG.addToLog("thread: " + std::to_string(GetCurrentThreadId()), "Threads");
+	LOG.addToLog("=========================================", "Threads");
 
 	static DWORD timeLastTimeMemoryModification = GetTickCount();
 	if (/*highlightDeletedPoints &&*/ GetTickCount() - timeLastTimeMemoryModification > 33)
@@ -3540,6 +3565,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API deleteOutliers(char* 
 		GPU.getDevice()->GetImmediateContext(&ctx);
 
 	ctx->UpdateSubresource(currentPointCloud->mainVB, 0, NULL, currentPointCloud->vertexInfo.data(), currentPointCloud->getPointCount() * kVertexSize, currentPointCloud->getPointCount() * kVertexSize);
+	ctx->Release();
 
 	currentPointCloud->getSearchOctree()->pointsToDelete.clear();
 #endif // USE_COMPUTE_SHADER
