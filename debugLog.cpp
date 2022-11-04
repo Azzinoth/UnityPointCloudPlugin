@@ -24,6 +24,9 @@ std::string debugLog::vec3ToString(glm::vec3 vector)
 
 void debugLog::addToLog(std::string logEntry, std::string topic)
 {
+	if (!bFileOutput)
+		return;
+
 	if (DisabledTopics.find(topic) != DisabledTopics.end())
 		return;
 
@@ -70,6 +73,21 @@ void debugLog::addToLog(std::string logEntry, glm::mat4 matrix, std::string topi
 void debugLog::DisableTopicFileOutput(std::string TopicToDisable)
 {
 	DisabledTopics[TopicToDisable] = true;
+}
+
+void debugLog::EnableTopicFileOutput(std::string TopicToDisable)
+{
+	DisabledTopics.erase(TopicToDisable);
+}
+
+bool debugLog::IsFileOutputActive()
+{
+	return bFileOutput;
+}
+
+void debugLog::SetFileOutput(bool NewValue)
+{
+	bFileOutput = NewValue;
 }
 
 DX11GPU* DX11GPU::_instance = nullptr;

@@ -49,6 +49,10 @@ public:
 	std::vector<std::string> log;
 
 	void DisableTopicFileOutput(std::string TopicToDisable);
+	void EnableTopicFileOutput(std::string TopicToDisable);
+
+	bool IsFileOutputActive();
+	void SetFileOutput(bool NewValue);
 private:
 	SINGLETON_PRIVATE_PART(debugLog)
 	std::unordered_map<std::string, std::fstream*> openedFiles;
@@ -56,6 +60,7 @@ private:
 	std::string mat4ToString(glm::mat4 matrix);
 
 	std::unordered_map<std::string, bool> DisabledTopics;
+	bool bFileOutput = true;
 };
 
 #define LOG debugLog::getInstance()

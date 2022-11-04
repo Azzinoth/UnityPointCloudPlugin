@@ -3611,3 +3611,23 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API IsLastAsyncSaveFinish
 {
 	return SaveManager::getInstance().isSaveDone();
 }
+
+extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API IsDebugLogFileOutActive()
+{
+	return LOG.IsFileOutputActive();
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetDebugLogFileOutput(bool NewValue)
+{
+	LOG.SetFileOutput(NewValue);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API DisableTopicFileOutput(char* TopicName)
+{
+	LOG.DisableTopicFileOutput(TopicName);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API EnableTopicFileOutput(char* TopicName)
+{
+	LOG.EnableTopicFileOutput(TopicName);
+}
