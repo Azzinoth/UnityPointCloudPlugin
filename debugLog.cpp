@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "debugLog.h"
 
-debugLog* debugLog::_instance = nullptr;
+debugLog* debugLog::Instance = nullptr;
 
 debugLog::debugLog()
 {
@@ -90,7 +90,7 @@ void debugLog::SetFileOutput(bool NewValue)
 	bFileOutput = NewValue;
 }
 
-DX11GPU* DX11GPU::_instance = nullptr;
+DX11GPU* DX11GPU::Instance = nullptr;
 
 DX11GPU::DX11GPU() {};
 DX11GPU::~DX11GPU() {};

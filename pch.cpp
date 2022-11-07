@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using namespace FocalEngine;
+
 std::string getVersion()
 {
 	SYSTEMTIME st, lt;
@@ -1089,7 +1091,7 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API IsLastAsyncLoadFinish
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API getNewUniqueID(int* IDToFill)
 {
-	std::string newID = getUniqueHexID();
+	std::string newID = APPLICATION.GetUniqueHexID();
 	for (size_t i = 0; i < 24; i++)
 	{
 		IDToFill[i] = int(newID[i]);
@@ -1184,6 +1186,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 	LOG.DisableTopicFileOutput("precision");
 	LOG.DisableTopicFileOutput("screens");
 	LOG.DisableTopicFileOutput("renderLog");
+
+	if (THREAD_POOL.GetThreadCount() == 0)
+		THREAD_POOL.SetConcurrentThreadCount(2);
 
 	if (FloatsToSync.size() == 0)
 	{

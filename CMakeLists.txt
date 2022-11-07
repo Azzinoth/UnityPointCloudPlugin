@@ -31,6 +31,27 @@ file(GLOB cnpy_SRC
 	"thirdparty/cnpy/cnpy.cpp"
 )
 
+file(GLOB BasicApplicationSubSystem_SRC
+	"thirdparty/FEBasicApplication/FEBasicApplication.cpp"
+	"thirdparty/FEBasicApplication/FEBasicApplication.h"
+	"thirdparty/FEBasicApplication/FEThreadPool.cpp"
+	"thirdparty/FEBasicApplication/FEThreadPool.h"
+	"thirdparty/FEBasicApplication/FETime.cpp"
+	"thirdparty/FEBasicApplication/FETime.h"
+)
+
+file(GLOB imgui_SRC
+	"thirdparty/FEBasicApplication/ThirdParty/imgui/imgui.cpp"
+	"thirdparty/FEBasicApplication/ThirdParty/imgui/imgui_demo.cpp"
+	"thirdparty/FEBasicApplication/ThirdParty/imgui/imgui_draw.cpp"
+	"thirdparty/FEBasicApplication/ThirdParty/imgui/imgui_impl_glfw.cpp"
+	"thirdparty/FEBasicApplication/ThirdParty/imgui/imgui_impl_opengl3.cpp"
+	"thirdparty/FEBasicApplication/ThirdParty/imgui/imgui_tables.cpp"
+	"thirdparty/FEBasicApplication/ThirdParty/imgui/imgui_widgets.cpp"
+)
+
+# *************** THIRD_PARTY END ***************
+
 file(GLOB source_SRC
 	"computeShader.cpp"
 	"debugLog.cpp"
@@ -40,6 +61,9 @@ file(GLOB source_SRC
 	"pch.cpp"
 )
 
+link_directories("thirdparty/FEBasicApplication/ThirdParty/glew2/lib/$(PlatformTarget)")
+link_directories("thirdparty/FEBasicApplication/ThirdParty/GLFW/lib/$(PlatformTarget)")
+
 # add the executable
 add_library(PointCloudPlugin SHARED 
 							 ${source_SRC}
@@ -47,7 +71,14 @@ add_library(PointCloudPlugin SHARED
 							 ${laszip_SRC}
 							 ${zlib_SRC}
 							 ${cnpy_SRC}
+							 ${BasicApplicationSubSystem_SRC}
+							 ${imgui_SRC}
 )
+
+target_link_libraries(PointCloudPlugin glew32.lib)
+target_link_libraries(PointCloudPlugin glfw3.lib)
+target_link_libraries(PointCloudPlugin glfw3dll.lib)
+target_link_libraries(PointCloudPlugin opengl32.lib)
 
 set_target_properties(PointCloudPlugin PROPERTIES CXX_STANDARD 17)
 
@@ -56,6 +87,8 @@ source_group("Source Files" FILES ${source_SRC})
 source_group("Source Files/ThirdParty/laszip" FILES ${laszip_SRC})
 source_group("Source Files/ThirdParty/zlib" FILES ${zlib_SRC})
 source_group("Source Files/ThirdParty/cnpy" FILES ${cnpy_SRC})
+source_group("Source Files/ThirdParty/BasicApplication" FILES ${BasicApplicationSubSystem_SRC})
+source_group("Source Files/ThirdParty/imgui" FILES ${imgui_SRC})
 
 # set FEBasicApplication as the startup project
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT PointCloudPlugin)
@@ -64,4 +97,6 @@ include_directories(
 	"thirdparty/"
 	"thirdparty/cnpy"
 	"thirdparty/zlib"
+	"thirdparty/FEBasicApplication/ThirdParty/glew2/include"
+	"thirdparty/FEBasicApplication/ThirdParty/"
 )

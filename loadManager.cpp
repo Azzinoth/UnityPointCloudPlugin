@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "loadManager.h"
 
-LoadManager* LoadManager::_instance = nullptr;
+LoadManager* LoadManager::Instance = nullptr;
 #ifdef LOD_SYSTEM
 std::vector<LODSetting> pointCloud::LODSettings = std::vector<LODSetting>();
 #endif
@@ -1230,7 +1230,7 @@ bool LoadManager::isLoadingDone()
 
 // =============================================================================================
 
-SaveManager* SaveManager::_instance = nullptr;
+SaveManager* SaveManager::Instance = nullptr;
 
 void SaveManager::saveFunc()
 {

@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "undoManager.h"
 
-undoManager* undoManager::_instance = nullptr;
+undoManager* undoManager::Instance = nullptr;
 
 undoManager::undoManager()
 {

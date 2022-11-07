@@ -13,6 +13,7 @@
 #pragma comment(lib, "dxguid.lib") // WKPDID_D3DDebugObjectName
 
 //#include "computeShader.h"
+#include "thirdparty/FEBasicApplication/FEBasicApplication.h"
 
 #include "Unity/IUnityGraphicsD3D11.h"
 #include "Unity/IUnityInterface.h"
@@ -22,22 +23,6 @@
 #include "glm/gtc/type_ptr.hpp"
 #include "glm/mat4x4.hpp"
 #include "glm/vec3.hpp"
-
-#define SINGLETON_PUBLIC_PART(CLASS_NAME)  \
-static CLASS_NAME& getInstance()           \
-{										   \
-	if (!_instance)                        \
-		_instance = new CLASS_NAME();      \
-	return *_instance;				       \
-}                                          \
-										   \
-~CLASS_NAME();
-
-#define SINGLETON_PRIVATE_PART(CLASS_NAME) \
-static CLASS_NAME* _instance;              \
-CLASS_NAME();                              \
-CLASS_NAME(const CLASS_NAME &);            \
-void operator= (const CLASS_NAME &);
 
 class debugLog
 {
