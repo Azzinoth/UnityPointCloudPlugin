@@ -1,6 +1,8 @@
 #pragma once
 
-#include "debugLog.h"
+#include "DX11GPU.h"
+
+using namespace FocalEngine;
 
 const BYTE g_CSMain_[] =
 {

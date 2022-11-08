@@ -30,7 +30,7 @@
 */
 
 #include <string>
-#include "../../../debugLog.h"
+#include "../../../DX11GPU.h"
 #include "laszip_api.h"
 
 // DLL function definitions
@@ -964,15 +964,15 @@ laszip_I32 laszip_load_dll(std::string projectPath)
   laszip_HINSTANCE = LoadLibraryA((projectPath + "/Plugins/PointCloudPlugin/LASzip64.dll").c_str());
   if (laszip_HINSTANCE == NULL)
   {
-    debugLog::getInstance().addToLog("loading dll with path: " + (projectPath + "/Plugins/PointCloudPlugin/LASzip64.dll") + " failed!", "DLL_ERRORS");
+    FocalEngine::LOG.Add("loading dll with path: " + (projectPath + "/Plugins/PointCloudPlugin/LASzip64.dll") + " failed!", "DLL_ERRORS");
   	laszip_HINSTANCE = LoadLibraryA((projectPath + "/Plugins/x86_64/LASzip64.dll").c_str());
   	if (laszip_HINSTANCE != NULL)
   	{
-        debugLog::getInstance().addToLog("loading dll with alternative path: " + (projectPath + "/Plugins/x86_64/LASzip64.dll") + " succeeded!", "DLL_ERRORS");
+        FocalEngine::LOG.Add("loading dll with alternative path: " + (projectPath + "/Plugins/x86_64/LASzip64.dll") + " succeeded!", "DLL_ERRORS");
   	}
   	else
   	{
-        debugLog::getInstance().addToLog("loading dll with alternative path: " + (projectPath + "/Plugins/x86_64/LASzip64.dll") + " failed!", "DLL_ERRORS");
+        FocalEngine::LOG.Add("loading dll with alternative path: " + (projectPath + "/Plugins/x86_64/LASzip64.dll") + " failed!", "DLL_ERRORS");
   	}	
   }
 #else

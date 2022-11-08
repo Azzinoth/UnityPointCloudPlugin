@@ -36,6 +36,8 @@ file(GLOB BasicApplicationSubSystem_SRC
 	"thirdparty/FEBasicApplication/FEBasicApplication.h"
 	"thirdparty/FEBasicApplication/FEThreadPool.cpp"
 	"thirdparty/FEBasicApplication/FEThreadPool.h"
+	"thirdparty/FEBasicApplication/FELog.cpp"
+	"thirdparty/FEBasicApplication/FELog.h"
 	"thirdparty/FEBasicApplication/FETime.cpp"
 	"thirdparty/FEBasicApplication/FETime.h"
 )
@@ -54,9 +56,14 @@ file(GLOB imgui_SRC
 
 file(GLOB source_SRC
 	"computeShader.cpp"
-	"debugLog.cpp"
+	"DX11GPU.cpp"
 	"dllmain.cpp"
+	"Octree.cpp"
+	"Octree.h"
+	"PointCloud.cpp"
+	"PointCloud.h"
 	"loadManager.cpp"
+	"loadManager.h"
 	"undoManager.cpp"
 	"pch.cpp"
 )

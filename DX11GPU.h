@@ -24,31 +24,8 @@
 #include "glm/mat4x4.hpp"
 #include "glm/vec3.hpp"
 
-class debugLog
-{
-public:
-	SINGLETON_PUBLIC_PART(debugLog)
-	void addToLog(std::string logEntry, std::string topic = "debugLog");
-	void addToLog(std::string logEntry, glm::vec3 vector, std::string topic = "debugLog");
-	void addToLog(std::string logEntry, glm::mat4 matrix, std::string topic = "debugLog");
-	std::vector<std::string> log;
-
-	void DisableTopicFileOutput(std::string TopicToDisable);
-	void EnableTopicFileOutput(std::string TopicToDisable);
-
-	bool IsFileOutputActive();
-	void SetFileOutput(bool NewValue);
-private:
-	SINGLETON_PRIVATE_PART(debugLog)
-	std::unordered_map<std::string, std::fstream*> openedFiles;
-	std::string vec3ToString(glm::vec3 vector);
-	std::string mat4ToString(glm::mat4 matrix);
-
-	std::unordered_map<std::string, bool> DisabledTopics;
-	bool bFileOutput = true;
-};
-
-#define LOG debugLog::getInstance()
+std::string vec3ToString(glm::vec3 vector);
+std::string mat4ToString(glm::mat4 matrix);
 
 class DX11GPU
 {

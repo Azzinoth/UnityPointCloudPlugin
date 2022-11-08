@@ -24,7 +24,7 @@ void undoManager::undo(int actionsToUndo)
 	pointCloud* currentPointCloud = nullptr;
 	currentPointCloud = undoActions.back()->affectedPointCloud;
 
-	LOG.addToLog("currentPointCloud ID: " + currentPointCloud->ID, "undoActions");
+	LOG.Add("currentPointCloud ID: " + currentPointCloud->ID, "undoActions");
 	if (currentPointCloud == nullptr)
 		return;
 
@@ -33,7 +33,7 @@ void undoManager::undo(int actionsToUndo)
 
 	for (size_t i = undoActions.size() - 1; i >= 0; i--)
 	{
-		LOG.addToLog("i was : " + std::to_string(i), "undoActions");
+		LOG.Add("i was : " + std::to_string(i), "undoActions");
 		if (undoActions[i]->affectedPointCloud != currentPointCloud)
 			continue;
 
@@ -79,18 +79,18 @@ void undoManager::undoInternal(action* actionToUndo, std::vector<MeshVertex>& or
 	std::vector<int> deletedPoints;
 	if (actionToUndo->type == "deleteAction")
 	{
-		LOG.addToLog("Brush location: ", reinterpret_cast<deleteAction*>(actionToUndo)->center, "undoActions");
-		LOG.addToLog("Brush size: " + std::to_string(reinterpret_cast<deleteAction*>(actionToUndo)->radius), "undoActions");
+		LOG.Add("Brush location: " + vec3ToString(reinterpret_cast<deleteAction*>(actionToUndo)->center), "undoActions");
+		LOG.Add("Brush size: " + std::to_string(reinterpret_cast<deleteAction*>(actionToUndo)->radius), "undoActions");
 
 		currentPointCloud->getSearchOctree()->searchForObjects(reinterpret_cast<deleteAction*>(actionToUndo)->center,
 															   reinterpret_cast<deleteAction*>(actionToUndo)->radius, deletedPoints);
 
-		LOG.addToLog("pointsToDelete size: " + std::to_string(deletedPoints.size()), "undoActions");
+		LOG.Add("pointsToDelete size: " + std::to_string(deletedPoints.size()), "undoActions");
 	}
 	else if (actionToUndo->type == "deleteOutliersAction")
 	{
 		deletedPoints = reinterpret_cast<deleteOutliersAction*>(actionToUndo)->outliersIndexes;
-		LOG.addToLog("deletedPoints size: " + std::to_string(deletedPoints.size()), "undoActions");
+		LOG.Add("deletedPoints size: " + std::to_string(deletedPoints.size()), "undoActions");
 	}
 
 	for (size_t i = 0; i < deletedPoints.size(); i++)

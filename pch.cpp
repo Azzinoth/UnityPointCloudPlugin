@@ -1007,12 +1007,12 @@ const BYTE g_CSMain[] =
 static string NextTextToSend = "";
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetNextTextLengthFromDLL()
 {
-	return NextTextToSend.size();
+	return int(NextTextToSend.size());
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API FillTextFromDLL(int* Data)
 {
-	//LOG.addToLog(std::string("NextTextToSend.size(): ") + std::to_string(NextTextToSend.size()), "GetTextFromDLL");
+	//LOG.Add(std::string("NextTextToSend.size(): ") + std::to_string(NextTextToSend.size()), "GetTextFromDLL");
 
 	for (size_t i = 0; i < NextTextToSend.size(); i++)
 	{
@@ -1025,7 +1025,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API FillTextFromDLL(int* 
 std::unordered_map<std::string, float> FloatsToSync;
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetFloatsToSyncCount()
 {
-	return FloatsToSync.size();
+	return int(FloatsToSync.size());
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestFloatsToSyncVariableName(int index)
@@ -1100,11 +1100,11 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API getNewUniqueID(int* I
 
 void AsynOpenLAZFileFromUnity(char* filePath, char* ID)
 {
-	LOG.addToLog(std::string("File name: ") + filePath, "File_name");
+	LOG.Add(std::string("File name: ") + filePath, "File_Load_Log");
 
 	if (strlen(filePath) < 4)
 	{
-		LOG.addToLog(std::string("Call of AsynOpenLAZFileFromUnity can't be executed because file name is incorrect: ") + filePath, "ERRORS");
+		LOG.Add(std::string("Call of AsynOpenLAZFileFromUnity can't be executed because file name is incorrect: ") + filePath, "ERRORS");
 		return;
 	}
 
@@ -1113,7 +1113,7 @@ void AsynOpenLAZFileFromUnity(char* filePath, char* ID)
 	{
 		if (!DLLWasLoadedCorrectly)
 		{
-			LOG.addToLog("Call of AsynOpenLAZFileFromUnity can't be executed because DLL was not loaded correctly", "ERRORS");
+			LOG.Add("Call of AsynOpenLAZFileFromUnity can't be executed because DLL was not loaded correctly", "ERRORS");
 			return;
 		}
 	}
@@ -1126,11 +1126,11 @@ void AsynOpenLAZFileFromUnity(char* filePath, char* ID)
 
 extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OpenLAZFileFromUnity(char* filePath, char* ID)
 {
-	LOG.addToLog(std::string("File name: ") + filePath, "File_Name");
+	LOG.Add(std::string("File name: ") + filePath, "File_Name");
 
 	if (strlen(filePath) < 4)
 	{
-		LOG.addToLog(std::string("Call of AsynOpenLAZFileFromUnity can't be executed because file name is incorrect: ") + filePath, "ERRORS");
+		LOG.Add(std::string("Call of OpenLAZFileFromUnity can't be executed because file name is incorrect: ") + filePath, "ERRORS");
 		return false;
 	}
 
@@ -1139,31 +1139,19 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OpenLAZFileFromUnity(
 	{
 		if (!DLLWasLoadedCorrectly)
 		{
-			LOG.addToLog("Call of OpenLAZFileFromUnity can't be executed because DLL was not loaded correctly", "ERRORS");
+			LOG.Add("Call of OpenLAZFileFromUnity can't be executed because DLL was not loaded correctly", "ERRORS");
 			return false;
 		}
 	}
 
-	pointCloud* temp = new pointCloud();
-	temp->ID = ID;
-	bool willBeLoaded = false;
-	willBeLoaded = LoadManager::getInstance().tryLoadPointCloudAsync(std::string(filePath), projectPath, temp);
-	if (willBeLoaded)
-	{
-		pointClouds.push_back(temp);
-	}
-	else
-	{
-		delete temp;
-	}
-
-	return willBeLoaded;
+	AsynOpenLAZFileFromUnity(filePath, ID);
+	return true;
 }
 
 extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ValidatePointCloudGMFromUnity(char* filePath, char* pointCloudID)
 {
-	LOG.addToLog("Validate path: " + std::string(filePath), "Validate");
-	LOG.addToLog("Validate ID: " + std::string(pointCloudID), "Validate");
+	LOG.Add("path: " + std::string(filePath), "ReLoad");
+	LOG.Add("ID: " + std::string(pointCloudID), "ReLoad");
 
 	if (strlen(filePath) < 4)
 		return false;
@@ -1175,8 +1163,9 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ValidatePointCloudGMF
 			return false;
 	}
 
-	LOG.addToLog("Try to load: " + std::string(filePath), "Validate");
+	LOG.Add("Try to load: " + std::string(filePath), "ReLoad");
 	AsynOpenLAZFileFromUnity(filePath, pointCloudID);
+
 	return true;
 }
 
@@ -1195,11 +1184,6 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 		//FloatsToSync["FirstShaderFloat"] = 0.0f;
 	}
 
-	//requestToDelete = true;
-	// Call for thread initialization.
-	LoadManager::getInstance();
-	SaveManager::getInstance();
-
 	/*UNDO_MANAGER.clear();
 
 	for (size_t i = 0; i < pointClouds.size(); i++)
@@ -1209,15 +1193,15 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 	pointClouds.clear();*/
 
 	projectPath = projectFilePath;
-	LOG.addToLog("Project path: " + std::string(projectFilePath), "Project_File_Path");
+	LOG.Add("Project path: " + std::string(projectFilePath), "Project_File_Path");
 
 	if (!DLLWasLoadedCorrectly)
 	{
 		if (laszip_load_dll(projectFilePath))
 		{
 			DLLWasLoadedCorrectly = false;
-			LOG.addToLog("project path: " + std::string(projectFilePath), "DLL_ERRORS");
-			LOG.addToLog("loading LASzip DLL failed", "DLL_ERRORS");
+			LOG.Add("project path: " + std::string(projectFilePath), "DLL_ERRORS");
+			LOG.Add("loading LASzip DLL failed", "DLL_ERRORS");
 			return;
 		}
 
@@ -1230,10 +1214,10 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 	laszip_U32 version_build;
 	if (laszip_get_version(&version_major, &version_minor, &version_revision, &version_build))
 	{
-		LOG.addToLog("getting LASzip DLL version number failed", "DLL_ERRORS");
+		LOG.Add("getting LASzip DLL version number failed", "DLL_ERRORS");
 	}
 
-	LOG.addToLog("LASzip DLL v" + std::to_string((int)version_major) + "." + std::to_string((int)version_minor) + "r" + std::to_string((int)version_revision) + " (build " + std::to_string((int)version_build) + ")", "DLL_START");
+	LOG.Add("LASzip DLL v" + std::to_string((int)version_major) + "." + std::to_string((int)version_minor) + "r" + std::to_string((int)version_revision) + " (build " + std::to_string((int)version_build) + ")", "DLL_START");
 
 #ifdef LOD_SYSTEM
 	pointCloud::LODSettings.resize(4);
@@ -1263,100 +1247,20 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SaveToLAZFileFromUnit
 	{
 		if (!DLLWasLoadedCorrectly)
 		{
-			LOG.addToLog("Call of SaveToLAZFileFromUnity can't be executed because DLL was not loaded correctly", "ERRORS");
+			LOG.Add("Call of SaveToLAZFileFromUnity can't be executed because DLL was not loaded correctly", "ERRORS");
 			return false;
 		}
 	}
 
 	if (getPointCloud(pointCloudID) == nullptr)
 	{
-		LOG.addToLog("Call of SaveToLAZFileFromUnity can't be executed because pointCloud can't be found", "ERRORS");
+		LOG.Add("Call of SaveToLAZFileFromUnity can't be executed because pointCloud can't be found", "ERRORS");
 		return false;
 	}
 
 	bool willBeSaved = false;
-	willBeSaved = SaveManager::getInstance().trySavePointCloudAsync(std::string(filePath), getPointCloud(pointCloudID));
+	willBeSaved = SaveManager::getInstance().SavePointCloudAsync(std::string(filePath), getPointCloud(pointCloudID));
 	return willBeSaved;
-
-	//pointCloud* currentPointCloud = getPointCloud(pointCloudID);
-	//if (currentPointCloud == nullptr)
-	//	return;
-
-	////LOG.addToLog("flag 0", "writeTest");
-	//laszip_POINTER laszip_writer;
-	//if (laszip_create(&laszip_writer))
-	//{
-	//	LOG.addToLog("creating laszip writer failed", "DLL_ERRORS");
-	//	return;
-	//}
-	////LOG.addToLog("flag 1", "writeTest");
-
-	//int pointsToWrite = 0;
-	//for (size_t j = 0; j < currentPointCloud->getPointCount(); j++)
-	//{
-	//	if (currentPointCloud->vertexInfo[j].position[0] != DELETED_POINTS_COORDINATE &&
-	//		currentPointCloud->vertexInfo[j].position[1] != DELETED_POINTS_COORDINATE &&
-	//		currentPointCloud->vertexInfo[j].position[2] != DELETED_POINTS_COORDINATE)
-	//		pointsToWrite++;
-	//}
-	////LOG.addToLog("flag 2", "writeTest");
-
-	//currentPointCloud->loadedFrom->header.number_of_point_records = pointsToWrite;
-	//if (laszip_set_header(laszip_writer, &currentPointCloud->loadedFrom->header))
-	//{
-	//	LOG.addToLog("setting header for laszip writer failed", "DLL_ERRORS");
-	//}
-	////LOG.addToLog("flag 3", "writeTest");
-
-	//std::string fileName = filePath;
-	//if (laszip_open_writer(laszip_writer, fileName.c_str(), true))
-	//{
-	//	LOG.addToLog("opening laszip writer for " + fileName + " failed", "DLL_ERRORS");
-
-	//	laszip_CHAR* error;
-	//	if (laszip_get_error(laszip_writer, &error))
-	//	{
-	//		LOG.addToLog("getting error messages", "DLL_ERRORS");
-	//	}
-	//	LOG.addToLog("MESSAGE: " + std::string(error), "DLL_ERRORS");
-	//	return;
-	//}
-
-	////LOG.addToLog("flag 4", "writeTest");
-	//for (size_t j = 0; j < currentPointCloud->getPointCount(); j++)
-	//{
-	//	//LOG.addToLog("iteration of (size_t j = 0; j < pointClouds[pointCloudIndex]->getPointCount(); j++)", "TEST");
-	//	if (currentPointCloud->vertexInfo[j].position[0] != DELETED_POINTS_COORDINATE &&
-	//		currentPointCloud->vertexInfo[j].position[1] != DELETED_POINTS_COORDINATE &&
-	//		currentPointCloud->vertexInfo[j].position[2] != DELETED_POINTS_COORDINATE)
-	//	{
-	//		if (laszip_set_point(laszip_writer, &currentPointCloud->loadedFrom->LAZpoints[j]))
-	//		{
-	//			LOG.addToLog("setting point " + std::to_string(j) + " failed", "DLL_ERRORS");
-	//			return;
-	//		}
-
-	//		if (laszip_write_point(laszip_writer))
-	//		{
-	//			LOG.addToLog("writing point " + std::to_string(j) + " failed", "DLL_ERRORS");
-	//			return;
-	//		}
-	//	}
-	//}
-
-	//// close the writer
-	//if (laszip_close_writer(laszip_writer))
-	//{
-	//	LOG.addToLog("closing laszip writer failed", "DLL_ERRORS");
-	//	return;
-	//}
-
-	//// destroy the writer
-	//if (laszip_destroy(laszip_writer))
-	//{
-	//	LOG.addToLog("destroying laszip writer failed", "DLL_ERRORS");
-	//	return;
-	//}
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SaveToOwnFormatFileFromUnity(char* filePath, char* pointCloudID)
@@ -1434,7 +1338,7 @@ void highlightDeletedPointsFunction(pointCloud* pointCloud, ID3D11DeviceContext*
 	if (pointCloud->getSearchOctree()->isInOctreeBound(localDeletionSpherePosition, deletionSphereSize))
 		pointCloud->getSearchOctree()->searchForObjects(localDeletionSpherePosition, deletionSphereSize, pointsToHighlight);
 	
-	//LOG.addToLog("pointsToHighlight.size():" + std::to_string(pointsToHighlight.size()), "11");
+	//LOG.Add("pointsToHighlight.size():" + std::to_string(pointsToHighlight.size()), "11");
 
 	int minIndex = INT_MAX;
 	int maxIndex = INT_MIN;
@@ -1519,11 +1423,11 @@ void highlightDeletedPointsFunction(pointCloud* pointCloud, ID3D11DeviceContext*
 	if (box.right / kVertexSize > pointCloud->vertexInfo.size())
 		return;
 
-	/*LOG.addToLog("min: " + std::to_string(minIndex), "11");
-	LOG.addToLog("dbox.right: " + std::to_string(dbox.right), "11");
+	/*LOG.Add("min: " + std::to_string(minIndex), "11");
+	LOG.Add("dbox.right: " + std::to_string(dbox.right), "11");
 
-	LOG.addToLog("box.left: " + std::to_string(box.left), "11");
-	LOG.addToLog("box.right: " + std::to_string(box.right), "11");*/
+	LOG.Add("box.left: " + std::to_string(box.left), "11");
+	LOG.Add("box.right: " + std::to_string(box.right), "11");*/
 	
 	ctx->UpdateSubresource(pointCloud->intermediateVB, 0, &dbox, pointCloud->vertexInfo.data() + minIndex, pointCloud->getPointCount() * kVertexSize, pointCloud->getPointCount() * kVertexSize);
 	ctx->CopySubresourceRegion(pointCloud->mainVB, 0, box.left, 0, 0, pointCloud->intermediateVB, 0, &dbox);
@@ -1539,7 +1443,7 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 {
 	/*if (GetTickCount() - timeLastTimeCall < 30)
 	{
-		LOG.addToLog("denial onDrawDeletePointsinGPUMem", "deleteEvents");
+		LOG.Add("denial onDrawDeletePointsinGPUMem", "deleteEvents");
 		return;
 	}
 	timeLastTimeCall = GetTickCount();
@@ -1547,13 +1451,13 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 	bool expected = true;
 	if (!requestToDelete.compare_exchange_strong(expected, false))
 	{
-		LOG.addToLog("requestToDelete was false in onDrawDeletePointsinGPUMem", "deleteEvents");
+		LOG.Add("requestToDelete was false in onDrawDeletePointsinGPUMem", "deleteEvents");
 		return;
 	}*/
 
 	int minIndex = INT_MAX;
 	int maxIndex = INT_MIN;
-	int pointCountTemp = pointCloud->getSearchOctree()->pointsToDelete.size();
+	int pointCountTemp = int(pointCloud->getSearchOctree()->pointsToDelete.size());
 
 	if (pointCloud->getSearchOctree()->pointsToDelete.size() != 0 || (minIndex != INT_MAX && maxIndex != INT_MIN))
 	{
@@ -1565,10 +1469,10 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 		box.front = 0;
 		box.back = 1;
 
-		LOG.addToLog("pointCloud->getSearchOctree()->pointsToDelete.size(): " + std::to_string(pointCloud->getSearchOctree()->pointsToDelete.size()), "onDrawDeletePointsinGPUMem");
+		LOG.Add("pointCloud->getSearchOctree()->pointsToDelete.size(): " + std::to_string(pointCloud->getSearchOctree()->pointsToDelete.size()), "onDrawDeletePointsinGPUMem");
 
 		if (pointCloud->getSearchOctree()->pointsToDelete.size() != 0)
-			LOG.addToLog("DrawPointCloud with pointsToDelete first element: " + std::to_string(pointCloud->getSearchOctree()->pointsToDelete[0]), "onDrawDeletePointsinGPUMem");
+			LOG.Add("DrawPointCloud with pointsToDelete first element: " + std::to_string(pointCloud->getSearchOctree()->pointsToDelete[0]), "onDrawDeletePointsinGPUMem");
 
 		for (size_t i = 0; i < pointCloud->getSearchOctree()->pointsToDelete.size(); i++)
 		{
@@ -1584,8 +1488,8 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 		}
 		pointCloud->getSearchOctree()->pointsToDelete.clear();
 
-		LOG.addToLog("maxIndex: " + std::to_string(maxIndex), "onDrawDeletePointsinGPUMem");
-		LOG.addToLog("minIndex: " + std::to_string(minIndex), "onDrawDeletePointsinGPUMem");
+		LOG.Add("maxIndex: " + std::to_string(maxIndex), "onDrawDeletePointsinGPUMem");
+		LOG.Add("minIndex: " + std::to_string(minIndex), "onDrawDeletePointsinGPUMem");
 
 		if (minIndex == INT_MAX || maxIndex == INT_MIN)
 			return;
@@ -1598,7 +1502,7 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 			}
 			else
 			{
-				LOG.addToLog("minIndex == lastDeletedMinIndex && maxIndex == lastDeletedMaxIndex && pointCountTemp == lastPointsCount", "onDrawDeletePointsinGPUMem");
+				LOG.Add("minIndex == lastDeletedMinIndex && maxIndex == lastDeletedMaxIndex && pointCountTemp == lastPointsCount", "onDrawDeletePointsinGPUMem");
 				return;
 			}
 		}
@@ -1617,15 +1521,15 @@ void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx
 		dbox.front = 0;
 		dbox.back = 1;
 
-		LOG.addToLog("min: " + std::to_string(minIndex), "onDrawDeletePointsinGPUMem");
-		LOG.addToLog("dbox.right: " + std::to_string(dbox.right), "onDrawDeletePointsinGPUMem");
+		LOG.Add("min: " + std::to_string(minIndex), "onDrawDeletePointsinGPUMem");
+		LOG.Add("dbox.right: " + std::to_string(dbox.right), "onDrawDeletePointsinGPUMem");
 
-		LOG.addToLog("box.left: " + std::to_string(box.left), "onDrawDeletePointsinGPUMem");
-		LOG.addToLog("box.right: " + std::to_string(box.right), "onDrawDeletePointsinGPUMem");
+		LOG.Add("box.left: " + std::to_string(box.left), "onDrawDeletePointsinGPUMem");
+		LOG.Add("box.right: " + std::to_string(box.right), "onDrawDeletePointsinGPUMem");
 
 		if (box.right / kVertexSize > pointCloud->vertexInfo.size())
 		{
-			LOG.addToLog("Error ! box.right / kVertexSize > pointCloudToRender->vertexInfo.size()", "onDrawDeletePointsinGPUMem");
+			LOG.Add("Error ! box.right / kVertexSize > pointCloudToRender->vertexInfo.size()", "onDrawDeletePointsinGPUMem");
 			return;
 		}
 
@@ -1648,7 +1552,7 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 {
 	if (size <= 0)
 	{
-		LOG.addToLog("deletion sphere size was: " + std::to_string(size), "deleteEvents");
+		LOG.Add("deletion sphere size was: " + std::to_string(size), "deleteEvents");
 		return 0;
 	}
 
@@ -1661,22 +1565,22 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 		}
 		else
 		{
-			LOG.addToLog("lastDeletionSize == size && lastDeletionCenter == centerOfBrush", "deleteEvents");
+			LOG.Add("lastDeletionSize == size && lastDeletionCenter == centerOfBrush", "deleteEvents");
 			return 0;
 		}
 	}
 	lastDeletionSize = size;
 	lastDeletionCenter = centerOfBrush;
 
-	LOG.addToLog("function: " + std::string(__FUNCTION__), "Threads");
-	LOG.addToLog("line: " + std::to_string(__LINE__), "Threads");
-	LOG.addToLog("thread: " + std::to_string(GetCurrentThreadId()), "Threads");
-	LOG.addToLog("=========================================", "Threads");
+	LOG.Add("function: " + std::string(__FUNCTION__), "Threads");
+	LOG.Add("line: " + std::to_string(__LINE__), "Threads");
+	LOG.Add("thread: " + std::to_string(GetCurrentThreadId()), "Threads");
+	LOG.Add("=========================================", "Threads");
 
 	/*bool expected = true;
 	if (!requestToDelete.compare_exchange_strong(expected, false))
 	{
-		LOG.addToLog("requestToDelete was false", "deleteEvents");
+		LOG.Add("requestToDelete was false", "deleteEvents");
 		return false;
 	}*/
 
@@ -1687,16 +1591,16 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 			UNDO_MANAGER.undoActionWasApplied = false;
 		}
 
-		//LOG.addToLog("denial onDrawDeletePointsinGPUMem", "deleteEvents");
+		//LOG.Add("denial onDrawDeletePointsinGPUMem", "deleteEvents");
 		return 0;
 	}
 	timeLastTimeCall = GetTickCount();
 	
-	//LOG.addToLog("line: " + std::to_string(__LINE__), "linesHited");
+	//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
 
 	int pointWasDeleted = 0;
 	//bool anyPointWasDeleted = false;
-	//LOG.addToLog("line: " + std::to_string(__LINE__), "linesHited");
+	//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
 #ifdef USE_COMPUTE_SHADER
 
 	deletionSpherePosition = glm::vec3(center[0], center[1], center[2]);
@@ -1726,10 +1630,10 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 		{
 			UNDO_MANAGER.addAction(new deleteAction(localPosition, size, pointClouds[i]));
 
-			LOG.addToLog("==============================================================", "deleteEvents");
-			LOG.addToLog("Brush location: ", localPosition, "deleteEvents");
-			LOG.addToLog("Brush size: " + std::to_string(size), "deleteEvents");
-			LOG.addToLog("pointsToDelete size: " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
+			LOG.Add("==============================================================", "deleteEvents");
+			LOG.Add("Brush location: ", localPosition, "deleteEvents");
+			LOG.Add("Brush size: " + std::to_string(size), "deleteEvents");
+			LOG.Add("pointsToDelete size: " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
 
 			anyPointWasDeleted = true;
 		}*/
@@ -1746,20 +1650,20 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 
 		if (pointClouds[i]->getSearchOctree()->isInOctreeBound(localPosition, size))
 		{
-			//LOG.addToLog("line: " + std::to_string(__LINE__), "linesHited");
+			//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
 			pointClouds[i]->getSearchOctree()->deleteObjects(localPosition, size);
 		}
 
 		if (pointClouds[i]->getSearchOctree()->pointsToDelete.size() > 0)
 		{
-			//LOG.addToLog("line: " + std::to_string(__LINE__), "linesHited");
+			//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
 			UNDO_MANAGER.addAction(new deleteAction(localPosition, size, pointClouds[i]));
-			//LOG.addToLog("line: " + std::to_string(__LINE__), "linesHited");
+			//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
 
-			LOG.addToLog("==============================================================", "deleteEvents");
-			LOG.addToLog("Brush location: ", localPosition, "deleteEvents");
-			LOG.addToLog("Brush size: " + std::to_string(size), "deleteEvents");
-			LOG.addToLog("pointsToDelete size: " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
+			LOG.Add("==============================================================", "deleteEvents");
+			LOG.Add("Brush location: " + vec3ToString(localPosition), "deleteEvents");
+			LOG.Add("Brush size: " + std::to_string(size), "deleteEvents");
+			LOG.Add("pointsToDelete size: " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
 
 			octree* currentOctree = pointClouds[i]->getSearchOctree();
 			for (size_t j = 0; j < currentOctree->pointsToDelete.size(); j++)
@@ -1783,7 +1687,7 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 #endif // USE_COMPUTE_SHADER
 
 	//requestToDelete = true;
-	//LOG.addToLog("line: " + std::to_string(__LINE__), "linesHited");
+	//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
 	return pointWasDeleted;
 }
 
@@ -1855,7 +1759,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestPointCloudUTMZ
 
 	if (currentPointCloud->UTMZone.size() == 0 || currentPointCloud->UTMZone.size() == 0)
 	{
-		LOG.addToLog("RequestPointCloudUTMZoneFromUnity was called but \"UTMZone\" or/and \"North\" was empty!", "DLL_ERRORS");
+		LOG.Add("RequestPointCloudUTMZoneFromUnity was called but \"UTMZone\" or/and \"North\" was empty!", "DLL_ERRORS");
 	}
 	else if (currentPointCloud->UTMZone.size() == 1)
 	{
@@ -1881,7 +1785,7 @@ extern "C" void	UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnit
 
 	OnGraphicsDeviceEvent(kUnityGfxDeviceEventInitialize);
 	// Write file with version
-	LOG.addToLog(currentVersion, "version");
+	LOG.Add(currentVersion, "version");
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
@@ -1933,7 +1837,7 @@ static MyConstBuffer* CostBufferData = new MyConstBuffer();
 
 static void createConstantBuffer(ID3D11Buffer** Buffer)
 {
-	LOG.addToLog("createConstantBuffer begin.", "AddVariableToShader");
+	LOG.Add("createConstantBuffer begin.", "AddVariableToShader");
 	D3D11_BUFFER_DESC desc;
 	memset(&desc, 0, sizeof(desc));
 
@@ -1949,11 +1853,11 @@ static void createConstantBuffer(ID3D11Buffer** Buffer)
 
 	if (*Buffer == nullptr)
 	{
-		LOG.addToLog("*Buffer == nullptr", "AddVariableToShader");
-		LOG.addToLog("result: " + std::to_string(result), "AddVariableToShader");
+		LOG.Add("*Buffer == nullptr", "AddVariableToShader");
+		LOG.Add("result: " + std::to_string(result), "AddVariableToShader");
 	}
 
-	LOG.addToLog("createConstantBuffer end.", "AddVariableToShader");
+	LOG.Add("createConstantBuffer end.", "AddVariableToShader");
 }
 
 static void CreateResources()
@@ -1979,10 +1883,10 @@ static void CreateResources()
 							"VS", "vs_5_0",
 							D3DCOMPILE_ENABLE_STRICTNESS, 0, &pVSBlob, &errorBlob);*/
 
-	LOG.addToLog("shaderResult: " + std::system_category().message(hr), "computeShader");
+	LOG.Add("shaderResult: " + std::system_category().message(hr), "computeShader");
 	if (errorBlob)
 	{
-		LOG.addToLog("shaderResult: " + std::string((char*)errorBlob->GetBufferPointer()), "computeShader");
+		LOG.Add("shaderResult: " + std::string((char*)errorBlob->GetBufferPointer()), "computeShader");
 		//OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 		errorBlob->Release();
 	}
@@ -1991,10 +1895,10 @@ static void CreateResources()
 	hr = GPU.getDevice()->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &m_VertexShader);
 
 	if (FAILED(hr))
-		LOG.addToLog("Failed to create vertex shader.", "computeShader");
+		LOG.Add("Failed to create vertex shader.", "computeShader");
 	hr = GPU.getDevice()->CreatePixelShader(kPixelShaderCode, sizeof(kPixelShaderCode), nullptr, &m_PixelShader);
 	if (FAILED(hr))
-		LOG.addToLog("Failed to create pixel shader.", "computeShader");
+		LOG.Add("Failed to create pixel shader.", "computeShader");
 
 	// input layout
 	if (m_VertexShader)
@@ -2067,11 +1971,11 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 	//	deletionSpherePosition = glm::vec3(0.0f);
 	//	deletionSphereSize = 0.0f;
 	//	runMyDeleteComputeShader(pointCloudToRender);
-	//	LOG.addToLog("allPointsData_CS_SRV == nullptr updated", "computeShader");
+	//	LOG.Add("allPointsData_CS_SRV == nullptr updated", "computeShader");
 	//	if (pointCloudToRender->current_CS_UAV == nullptr)
-	//		LOG.addToLog("current_CS_UAV == nullptr", "computeShader");
+	//		LOG.Add("current_CS_UAV == nullptr", "computeShader");
 	//	//pointCloudToRender->pointsToDraw = getComputeShaderResultCounter(GPU.getDevice(), *pointCloudToRender->current_CS_UAV/*result_CS_UAV*/);
-	//	//LOG.addToLog("getComputeShaderResultCounter(GPU.getDevice(), *current_CS_UAV/*result_CS_UAV*/);", "computeShader");
+	//	//LOG.Add("getComputeShaderResultCounter(GPU.getDevice(), *current_CS_UAV/*result_CS_UAV*/);", "computeShader");
 	//	//pointCloudToRender->currentInputPoints_CS_SRV = &pointCloudToRender->result_CS_SRV;
 	//	//pointCloudToRender->current_CS_UAV = &pointCloudToRender->resultSecond_CS_UAV;
 	//}
@@ -2079,13 +1983,13 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 
 	if (pointCloudToRender->getSearchOctree()->pointsToDelete.size() != 0)
 	{
-		LOG.addToLog("DrawPointCloud begin with pointsToDelete size: " + std::to_string(pointCloudToRender->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
+		LOG.Add("DrawPointCloud begin with pointsToDelete size: " + std::to_string(pointCloudToRender->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
 	}
 
 	glm::mat4 glmWorldMatrix = pointCloudToRender->worldMatrix;
 	glm::mat4 glmViewMatrix;
 	glm::mat4 glmProjectionMatrix; 
-	//LOG.addToLog("screenIndex in DrawPointCloud: " + std::to_string(internalScreenIndex), "screens");
+	//LOG.Add("screenIndex in DrawPointCloud: " + std::to_string(internalScreenIndex), "screens");
 
 	if (internalScreenIndex == -1 || viewProjectionMatrices.find(internalScreenIndex) == viewProjectionMatrices.end())
 	{
@@ -2099,8 +2003,8 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 
 		if (viewProjectionMatricesBuffers.find(internalScreenIndex) == viewProjectionMatricesBuffers.end())
 		{
-			LOG.addToLog("adding entry in viewProjectionMatricesBuffers", "screens");
-			LOG.addToLog("viewProjectionMatricesBuffers.size(): " + std::to_string(viewProjectionMatricesBuffers.size()), "screens");
+			LOG.Add("adding entry in viewProjectionMatricesBuffers", "screens");
+			LOG.Add("viewProjectionMatricesBuffers.size(): " + std::to_string(viewProjectionMatricesBuffers.size()), "screens");
 
 			createConstantBuffer(&viewProjectionMatricesBuffers[internalScreenIndex]);
 		}
@@ -2110,17 +2014,17 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 	glmViewMatrix = glm::transpose(glmViewMatrix);
 	glmProjectionMatrix = glm::transpose(glmProjectionMatrix);
 
-	//debugLog::getInstance().addToLog("ID: " + pointCloudToRender->ID, "renderLog");
-	//debugLog::getInstance().addToLog("x: " + std::to_string(glmWorldMatrix[0][0]) + " y: " + std::to_string(glmWorldMatrix[0][1]) +
+	//LOG.Add("ID: " + pointCloudToRender->ID, "renderLog");
+	//LOG.Add("x: " + std::to_string(glmWorldMatrix[0][0]) + " y: " + std::to_string(glmWorldMatrix[0][1]) +
 	//								 " z: " + std::to_string(glmWorldMatrix[0][2]) + " w: " + std::to_string(glmWorldMatrix[0][3]), "renderLog");
 
-	//debugLog::getInstance().addToLog("x: " + std::to_string(glmWorldMatrix[1][0]) + " y: " + std::to_string(glmWorldMatrix[1][1]) +
+	//LOG.Add("x: " + std::to_string(glmWorldMatrix[1][0]) + " y: " + std::to_string(glmWorldMatrix[1][1]) +
 	//	" z: " + std::to_string(glmWorldMatrix[1][2]) + " w: " + std::to_string(glmWorldMatrix[1][3]), "renderLog");
 
-	//debugLog::getInstance().addToLog("x: " + std::to_string(glmWorldMatrix[2][0]) + " y: " + std::to_string(glmWorldMatrix[2][1]) +
+	//LOG.Add("x: " + std::to_string(glmWorldMatrix[2][0]) + " y: " + std::to_string(glmWorldMatrix[2][1]) +
 	//	" z: " + std::to_string(glmWorldMatrix[2][2]) + " w: " + std::to_string(glmWorldMatrix[2][3]), "renderLog");
 
-	//debugLog::getInstance().addToLog("x: " + std::to_string(glmWorldMatrix[3][0]) + " y: " + std::to_string(glmWorldMatrix[3][1]) +
+	//LOG.Add("x: " + std::to_string(glmWorldMatrix[3][0]) + " y: " + std::to_string(glmWorldMatrix[3][1]) +
 	//	" z: " + std::to_string(glmWorldMatrix[3][2]) + " w: " + std::to_string(glmWorldMatrix[3][3]), "renderLog");
 
 	// WHY ??))
@@ -2132,12 +2036,12 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		//	distance = frustum[p][0] * glmWorldMatrix[3][0] + frustum[p][1] * glmWorldMatrix[3][1] + frustum[p][2] * glmWorldMatrix[3][2] + frustum[p][3];
 		//	if (distance <= -pointCloudToRender->getSearchOctree()->root->nodeAABB.size)
 		//	{
-		//		/*LOG.addToLog("distance: " + std::to_string(distance), "renderTest");
-		//		LOG.addToLog("nodeAABB.size: " + std::to_string(pointCloudToRender->getSearchOctree()->root->nodeAABB.size), "renderTest");
+		//		/*LOG.Add("distance: " + std::to_string(distance), "renderTest");
+		//		LOG.Add("nodeAABB.size: " + std::to_string(pointCloudToRender->getSearchOctree()->root->nodeAABB.size), "renderTest");
 
-		//		LOG.addToLog("glmWorldMatrix[3][0]: " + std::to_string(glmWorldMatrix[3][0]), "renderTest");
-		//		LOG.addToLog("glmWorldMatrix[3][1]: " + std::to_string(glmWorldMatrix[3][1]), "renderTest");
-		//		LOG.addToLog("glmWorldMatrix[3][2]: " + std::to_string(glmWorldMatrix[3][2]), "renderTest");*/
+		//		LOG.Add("glmWorldMatrix[3][0]: " + std::to_string(glmWorldMatrix[3][0]), "renderTest");
+		//		LOG.Add("glmWorldMatrix[3][1]: " + std::to_string(glmWorldMatrix[3][1]), "renderTest");
+		//		LOG.Add("glmWorldMatrix[3][2]: " + std::to_string(glmWorldMatrix[3][2]), "renderTest");*/
 		//		return;
 		//	}
 		//}
@@ -2151,11 +2055,11 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 	ctx->OMSetBlendState(m_BlendState, NULL, 0xFFFFFFFF);
 
 	glm::mat4 finalMatrix = glmProjectionMatrix * glmViewMatrix * glmWorldMatrix;
-	LOG.addToLog("finalMatrix :", finalMatrix, "camera");
-	LOG.addToLog("glmViewMatrix :", glmViewMatrix, "camera");
-	LOG.addToLog("glmWorldMatrix :", glmWorldMatrix, "camera");
+	LOG.Add("finalMatrix :" + mat4ToString(finalMatrix), "camera");
+	LOG.Add("glmViewMatrix :" + mat4ToString(glmViewMatrix), "camera");
+	LOG.Add("glmWorldMatrix :" + mat4ToString(glmWorldMatrix), "camera");
 
-	//LOG.addToLog("m_CB update begin.", "AddVariableToShader");
+	//LOG.Add("m_CB update begin.", "AddVariableToShader");
 #ifdef USE_QUADS_NOT_POINTS
 	ctx->UpdateSubresource(m_CB, 0, NULL, glm::value_ptr(glmWorldMatrix), 64, 0);
 	ctx->UpdateSubresource(m_CB, 1, NULL, glm::value_ptr(glmViewMatrix), 128, 0);
@@ -2178,7 +2082,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		//DataStorage.x = 0.5f/*FloatsToSync["FirstShaderFloat"]*/;
 		//ctx->UpdateSubresource(m_CB, 3, NULL, glm::value_ptr(DataStorage), 16, 0);
 
-		//LOG.addToLog("FloatsToSync[\"FirstShaderFloat\"]: " + std::to_string(FloatsToSync["FirstShaderFloat"]), "AddVariableToShader");
+		//LOG.Add("FloatsToSync[\"FirstShaderFloat\"]: " + std::to_string(FloatsToSync["FirstShaderFloat"]), "AddVariableToShader");
 	}
 	else
 	{
@@ -2187,7 +2091,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		ctx->UpdateSubresource(viewProjectionMatricesBuffers[internalScreenIndex], 2, NULL, glm::value_ptr(glmViewMatrix), 192, 0);
 	}
 
-	//LOG.addToLog("m_CB update end.", "AddVariableToShader");
+	//LOG.Add("m_CB update end.", "AddVariableToShader");
 	
 #endif
 
@@ -2242,7 +2146,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		
 #endif
 		ctx->UpdateSubresource(pointCloudToRender->mainVB, 0, nullptr, pointCloudToRender->vertexInfo.data(), pointCloudToRender->getPointCount() * kVertexSize, pointCloudToRender->getPointCount() * kVertexSize);
-		LOG.addToLog("copy data to vertex buffer, vertexInfo size: " + std::to_string(pointCloudToRender->vertexInfo.size()), "OctreeEvents");
+		LOG.Add("copy data to vertex buffer, vertexInfo size: " + std::to_string(pointCloudToRender->vertexInfo.size()), "OctreeEvents");
 
 #ifdef USE_QUADS_NOT_POINTS
 		desc.Usage = D3D11_USAGE_DEFAULT;
@@ -2284,7 +2188,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		deletionSpherePosition = glm::vec3(0.0f);
 		deletionSphereSize = 0.0f;
 		runMyDeleteComputeShader(pointCloudToRender);
-		LOG.addToLog("current_CS_SRV == nullptr updated", "computeShader");
+		LOG.Add("current_CS_SRV == nullptr updated", "computeShader");
 	}
 
 	ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
@@ -2311,7 +2215,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		pointCloudToRender->deletionOccuredThisFrame = false;
 	}*/
 
-	//LOG.addToLog("pointsToDraw: " + std::to_string(pointCloudToRender->pointsToDraw), "computeShader");
+	//LOG.Add("pointsToDraw: " + std::to_string(pointCloudToRender->pointsToDraw), "computeShader");
 	
 
 	if (pointCloudToRender->pointsToDraw != 0 && pointCloudToRender->pointsToDraw <= pointCloudToRender->getPointCount())
@@ -2320,7 +2224,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 #ifdef LOD_SYSTEM
 		if (!LODSystemActive)
 		{
-			//LOG.addToLog("pointCloudToRender->pointsToDraw: " + std::to_string(pointCloudToRender->pointsToDraw), "computeShader");
+			//LOG.Add("pointCloudToRender->pointsToDraw: " + std::to_string(pointCloudToRender->pointsToDraw), "computeShader");
 			ctx->Draw(pointCloudToRender->pointsToDraw, 0);
 		}
 		else
@@ -2442,13 +2346,13 @@ static void Render()
 	if (renderThreads.find(currentThread) == renderThreads.end())
 	{
 		renderThreads[currentThread]++;
-		LOG.addToLog("render thread: " + std::to_string(GetCurrentThreadId()), "camera");
+		LOG.Add("render thread: " + std::to_string(GetCurrentThreadId()), "camera");
 	}*/
 
-	LOG.addToLog("function: " + std::string(__FUNCTION__), "Threads");
-	LOG.addToLog("line: " + std::to_string(__LINE__), "Threads");
-	LOG.addToLog("thread: " + std::to_string(GetCurrentThreadId()), "Threads");
-	LOG.addToLog("=========================================", "Threads");
+	LOG.Add("function: " + std::string(__FUNCTION__), "Threads");
+	LOG.Add("line: " + std::to_string(__LINE__), "Threads");
+	LOG.Add("thread: " + std::to_string(GetCurrentThreadId()), "Threads");
+	LOG.Add("=========================================", "Threads");
 
 	static DWORD timeLastTimeMemoryModification = GetTickCount();
 	if (/*highlightDeletedPoints &&*/ GetTickCount() - timeLastTimeMemoryModification > 33)
@@ -2461,8 +2365,8 @@ static void Render()
 	{
 		DrawPointCloud(pointClouds[i], localHighlightDeletedPoints);
 	}
-
-	LoadManager::getInstance().update();
+	
+	THREAD_POOL.Update();
 }
 
 extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API updateWorldMatrix(void* worldMatrix, char* pointCloudID) 
@@ -2500,9 +2404,9 @@ bool addIfNewView(float* newViewMatrix)
 		{
 			if (abs(recordedViewMatrix[i][j] - newData[j]) > 0.01)
 			{
-				//LOG.addToLog("should add", "camera");
-				//LOG.addToLog("recordedViewMatrix[i][j]: " + std::to_string(recordedViewMatrix[i][j]), "camera");
-				//LOG.addToLog("newData[j]: " + std::to_string(newData[j]), "camera");
+				//LOG.Add("should add", "camera");
+				//LOG.Add("recordedViewMatrix[i][j]: " + std::to_string(recordedViewMatrix[i][j]), "camera");
+				//LOG.Add("newData[j]: " + std::to_string(newData[j]), "camera");
 				equal = false;
 				break;
 			}
@@ -2517,7 +2421,7 @@ bool addIfNewView(float* newViewMatrix)
 
 	if (needToAdd)
 	{
-		LOG.addToLog("==================== new view matrix added ====================", "camera");
+		LOG.Add("==================== new view matrix added ====================", "camera");
 		recordedViewMatrix.push_back(newData);
 	}
 
@@ -2558,7 +2462,7 @@ bool addIfNewProjection(float* newProjectionMatrix)
 
 	if (needToAdd)
 	{
-		LOG.addToLog("==================== new projection matrix added ====================", "camera");
+		LOG.Add("==================== new projection matrix added ====================", "camera");
 		recordedProjectionMatrix.push_back(newData);
 	}
 
@@ -2570,12 +2474,12 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API updateCamera(void* ca
 {
 	if (cameraScreenIndex != -1)
 	{
-		LOG.addToLog("screenIndex in updateCamera: " + std::to_string(cameraScreenIndex), "screens");
+		LOG.Add("screenIndex in updateCamera: " + std::to_string(cameraScreenIndex), "screens");
 
 		if (viewProjectionMatrices.find(cameraScreenIndex) == viewProjectionMatrices.end())
 		{
-			LOG.addToLog("adding entry in viewProjectionMatrices", "screens");
-			LOG.addToLog("viewProjectionMatrices.size(): " + std::to_string(viewProjectionMatrices.size()), "screens");
+			LOG.Add("adding entry in viewProjectionMatrices", "screens");
+			LOG.Add("viewProjectionMatrices.size(): " + std::to_string(viewProjectionMatrices.size()), "screens");
 
 			float* newStorage = new float[32];
 			viewProjectionMatrices[cameraScreenIndex] = newStorage;
@@ -2598,7 +2502,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API updateCamera(void* ca
 	if (updateCameraThreads.find(currentThread) == updateCameraThreads.end())
 	{
 		updateCameraThreads[currentThread]++;
-		LOG.addToLog("updateCamera thread: " + std::to_string(GetCurrentThreadId()), "camera");
+		LOG.Add("updateCamera thread: " + std::to_string(GetCurrentThreadId()), "camera");
 	}*/
 
 	bool newData = addIfNewView((float*)(cameraWorldMatrix));
@@ -2607,7 +2511,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API updateCamera(void* ca
 	{
 		worldToViewMatrix[i] = ((float*)(cameraWorldMatrix))[i];
 		if (newData)
-			LOG.addToLog("worldToViewMatrix[" + std::to_string(i) + "]: " + std::to_string(worldToViewMatrix[i]), "camera");
+			LOG.Add("worldToViewMatrix[" + std::to_string(i) + "]: " + std::to_string(worldToViewMatrix[i]), "camera");
 	}
 
 	newData = addIfNewProjection((float*)(cameraProjectionMatrix));
@@ -2616,7 +2520,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API updateCamera(void* ca
 	{
 		projectionMatrix[i] = ((float*)(cameraProjectionMatrix))[i];
 		if (newData)
-			LOG.addToLog("projectionMatrix[" + std::to_string(i) + "]: " + std::to_string(projectionMatrix[i]), "camera");
+			LOG.Add("projectionMatrix[" + std::to_string(i) + "]: " + std::to_string(projectionMatrix[i]), "camera");
 	}
 
 	/*glm::mat4 glmViewMatrix = glm::make_mat4(worldToViewMatrix);
@@ -2625,20 +2529,20 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API updateCamera(void* ca
 	{
 		for (size_t j = 0; j < 4; j++)
 		{
-			LOG.addToLog("glmViewMatrix[" + std::to_string(i) + "][" + std::to_string(j) + "]: " + std::to_string(glmViewMatrix[i][j]), "camera");
+			LOG.Add("glmViewMatrix[" + std::to_string(i) + "][" + std::to_string(j) + "]: " + std::to_string(glmViewMatrix[i][j]), "camera");
 		}
 	}*/
 
-	//LOG.addToLog("glmWorldMatrix[0][3]: " + std::to_string(glmViewMatrix[0][3]), "camera");
-	//LOG.addToLog("glmWorldMatrix[1][3]: " + std::to_string(glmViewMatrix[1][3]), "camera");
-	//LOG.addToLog("glmWorldMatrix[2][3]: " + std::to_string(glmViewMatrix[2][3]), "camera");
+	//LOG.Add("glmWorldMatrix[0][3]: " + std::to_string(glmViewMatrix[0][3]), "camera");
+	//LOG.Add("glmWorldMatrix[1][3]: " + std::to_string(glmViewMatrix[1][3]), "camera");
+	//LOG.Add("glmWorldMatrix[2][3]: " + std::to_string(glmViewMatrix[2][3]), "camera");
 
 	updateFrustumPlanes();
 }
 
 static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 {
-	LOG.addToLog("eventID: " + std::to_string(eventID), "renderLog");
+	LOG.Add("eventID: " + std::to_string(eventID), "renderLog");
 	internalScreenIndex = eventID;
 	Render();
 }
@@ -2650,7 +2554,7 @@ extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRen
 
 static void UNITY_INTERFACE_API OnRenderAndDataEvent(int eventID, void* data)
 {
-	//LOG.addToLog("OnRenderAndDataEvent(int eventID, void* data)", "OnRenderAndDataEvent");
+	//LOG.Add("OnRenderAndDataEvent(int eventID, void* data)", "OnRenderAndDataEvent");
 
 	for (size_t i = 0; i < 16; i++)
 	{
@@ -2667,7 +2571,7 @@ static void UNITY_INTERFACE_API OnRenderAndDataEvent(int eventID, void* data)
 	{
 		for (size_t i = 0; i < 16; i++)
 		{
-			LOG.addToLog("worldToViewMatrix[" + std::to_string(i) + "]: " + std::to_string(worldToViewMatrix[i]), "camera");
+			LOG.Add("worldToViewMatrix[" + std::to_string(i) + "]: " + std::to_string(worldToViewMatrix[i]), "camera");
 		}
 	}
 	
@@ -2677,13 +2581,13 @@ static void UNITY_INTERFACE_API OnRenderAndDataEvent(int eventID, void* data)
 	{
 		for (size_t i = 0; i < 16; i++)
 		{
-			LOG.addToLog("projectionMatrix[" + std::to_string(i) + "]: " + std::to_string(projectionMatrix[i]), "camera");
+			LOG.Add("projectionMatrix[" + std::to_string(i) + "]: " + std::to_string(projectionMatrix[i]), "camera");
 		}
 	}
 
 	//for (size_t i = 0; i < 32; i++)
 	//{
-	//	LOG.addToLog("data[" + std::to_string(i) + "] = " + std::to_string(((float*)(data))[i]), "OnRenderAndDataEvent");
+	//	LOG.Add("data[" + std::to_string(i) + "] = " + std::to_string(((float*)(data))[i]), "OnRenderAndDataEvent");
 	//	//viewProjectionMatrices[screenIndex][i] = ((float*)(data))[i];
 	//}
 
@@ -2692,7 +2596,7 @@ static void UNITY_INTERFACE_API OnRenderAndDataEvent(int eventID, void* data)
 
 extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRenderEventAndDataFunc()
 {
-	//LOG.addToLog("GetRenderEventAndDataFunc()", "OnRenderAndDataEvent");
+	//LOG.Add("GetRenderEventAndDataFunc()", "OnRenderAndDataEvent");
 	return OnRenderAndDataEvent;
 }
 
@@ -2842,8 +2746,8 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestLODInfoFromUni
 	if (LODIndex >= pointCloud::LODSettings.size() || LODIndex < 0)
 		return;
 
-	//LOG.addToLog("pointCloud::LODSettings[LODIndex].maxDistance: " + std::to_string(pointCloud::LODSettings[LODIndex].maxDistance), "TEST");
-	//LOG.addToLog("pointCloud::LODSettings[LODIndex].targetPercentOFPoints: " + std::to_string(pointCloud::LODSettings[LODIndex].targetPercentOFPoints), "TEST");
+	//LOG.Add("pointCloud::LODSettings[LODIndex].maxDistance: " + std::to_string(pointCloud::LODSettings[LODIndex].maxDistance), "TEST");
+	//LOG.Add("pointCloud::LODSettings[LODIndex].targetPercentOFPoints: " + std::to_string(pointCloud::LODSettings[LODIndex].targetPercentOFPoints), "TEST");
 
 	maxDistance[0] = pointCloud::LODSettings[LODIndex].maxDistance;
 	targetPercentOFPoints[0] = pointCloud::LODSettings[LODIndex].targetPercentOFPoints;
@@ -2897,8 +2801,8 @@ bool isAtleastOnePointInSphere(int pointCloudIndex, float* center, float size)
 
 	glm::vec3 centerOfBrush = glm::vec3(center[0], center[1], center[2]);
 	glm::vec3 localPosition = glm::inverse(glm::transpose(pointClouds[pointCloudIndex]->worldMatrix)) * glm::vec4(centerOfBrush, 1.0f);
-	debugLog::getInstance().addToLog("centerOfBrush: ", centerOfBrush, "isAtleastOnePointInSphere");
-	debugLog::getInstance().addToLog("localPosition: ", localPosition, "isAtleastOnePointInSphere");
+	LOG.Add("centerOfBrush: " + vec3ToString(centerOfBrush), "isAtleastOnePointInSphere");
+	LOG.Add("localPosition: " + vec3ToString(localPosition), "isAtleastOnePointInSphere");
 
 	if (pointClouds[pointCloudIndex]->getSearchOctree()->isInOctreeBound(localPosition, size))
 	{
@@ -2943,14 +2847,14 @@ glm::vec3 getClosestPoint(int pointCloudIndex, glm::vec3 referencePoint)
 
 #ifdef CLOSEST_POINT_FAST_SEARCH
 
-	debugLog::getInstance().addToLog("referencePoint: ", referencePoint, "getClosestPoint");
+	LOG.Add("referencePoint: ", referencePoint, "getClosestPoint");
 
 	glm::mat4 glmWorldMatrix = pointClouds[pointCloudIndex]->worldMatrix;
 	glmWorldMatrix = glm::transpose(glmWorldMatrix);
 	glm::vec3 pointCloudTranslation = glm::vec3(glmWorldMatrix[3].x, glmWorldMatrix[3].y, glmWorldMatrix[3].z);
 
 	float distanceToPointCloud = glm::distance(referencePoint, pointCloudTranslation);
-	debugLog::getInstance().addToLog("distanceToPointCloud: " + std::to_string(distanceToPointCloud), "getClosestPoint");
+	LOG.Add("distanceToPointCloud: " + std::to_string(distanceToPointCloud), "getClosestPoint");
 
 	// Multiplying by 4 to decrease chance that we will not "caught" any points.
 	float workingRange = distanceToPointCloud * 4.0f;
@@ -2964,10 +2868,10 @@ glm::vec3 getClosestPoint(int pointCloudIndex, glm::vec3 referencePoint)
 	bool pointInRangeLastStep = pointInRange;
 	for (int i = 0; i < 20; i++)
 	{
-		debugLog::getInstance().addToLog("step: " + std::to_string(i), "getClosestPoint");
-		debugLog::getInstance().addToLog("sizeDifference: " + std::to_string(sizeDifference), "getClosestPoint");
+		LOG.Add("step: " + std::to_string(i), "getClosestPoint");
+		LOG.Add("sizeDifference: " + std::to_string(sizeDifference), "getClosestPoint");
 
-		debugLog::getInstance().addToLog("workingRange_BEFORE: " + std::to_string(workingRange), "getClosestPoint");
+		LOG.Add("workingRange_BEFORE: " + std::to_string(workingRange), "getClosestPoint");
 		if (downScale)
 		{
 			workingRange += -sizeDifference;
@@ -2978,19 +2882,19 @@ glm::vec3 getClosestPoint(int pointCloudIndex, glm::vec3 referencePoint)
 		}
 		sizeDifference = sizeDifference / 2.0f;
 		
-		debugLog::getInstance().addToLog("workingRange_AFTER: " + std::to_string(workingRange), "getClosestPoint");
+		LOG.Add("workingRange_AFTER: " + std::to_string(workingRange), "getClosestPoint");
 
 		pointInRange = isAtleastOnePointInSphere(pointCloudIndex, glm::value_ptr(referencePoint), workingRange);
 
 		
-		debugLog::getInstance().addToLog("pointInRange: " + std::to_string(pointInRange), "getClosestPoint");
+		LOG.Add("pointInRange: " + std::to_string(pointInRange), "getClosestPoint");
 		
 		if (pointInRange)
 			lastScaleWithPoints = workingRange;
 
 		if (pointInRange != pointInRangeLastStep)
 		{
-			debugLog::getInstance().addToLog("pointInRange != pointInRangeLastStep", "getClosestPoint");
+			LOG.Add("pointInRange != pointInRangeLastStep", "getClosestPoint");
 			pointInRangeLastStep = pointInRange;
 			downScale = !downScale;
 			//sizeDifference = sizeDifference / 2.0f;
@@ -2998,7 +2902,7 @@ glm::vec3 getClosestPoint(int pointCloudIndex, glm::vec3 referencePoint)
 	}
 
 	float size = lastScaleWithPoints;
-	debugLog::getInstance().addToLog("lastScaleWithPoints: " + std::to_string(lastScaleWithPoints), "getClosestPoint");
+	LOG.Add("lastScaleWithPoints: " + std::to_string(lastScaleWithPoints), "getClosestPoint");
 
 	float minDistance = FLT_MAX;
 	int totalCountOFPoints = 0;
@@ -3026,9 +2930,9 @@ glm::vec3 getClosestPoint(int pointCloudIndex, glm::vec3 referencePoint)
 			continue;
 
 		float distanceToClosest = glm::length(pointClouds[pointCloudIndex]->vertexInfo[i].position - referencePoint);
-		//debugLog::getInstance().addToLog("First point: ", pointClouds[pointCloudIndex]->vertexInfo[i].position, "getClosestPoint");
-		//debugLog::getInstance().addToLog("ReferencePoint point: ", referencePoint, "getClosestPoint");
-		//debugLog::getInstance().addToLog("distanceToClosest: " + std::to_string(distanceToClosest), "getClosestPoint");
+		//LOG.Add("First point: ", pointClouds[pointCloudIndex]->vertexInfo[i].position, "getClosestPoint");
+		//LOG.Add("ReferencePoint point: ", referencePoint, "getClosestPoint");
+		//LOG.Add("distanceToClosest: " + std::to_string(distanceToClosest), "getClosestPoint");
 
 		if (minDistance > distanceToClosest)
 		{
@@ -3055,24 +2959,24 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API DeleteOutliers_OLD(in
 			break;
 
 		glm::vec3 point = getClosestPoint(pointCloudIndex, pointClouds[pointCloudIndex]->vertexInfo[i].position);
-		//debugLog::getInstance().addToLog("referencePoint: ", pointClouds[pointCloudIndex]->vertexInfo[i].position, "DeleteOutliers");
-		//debugLog::getInstance().addToLog("closestPoint: ", point, "DeleteOutliers");
+		//LOG.Add("referencePoint: ", pointClouds[pointCloudIndex]->vertexInfo[i].position, "DeleteOutliers");
+		//LOG.Add("closestPoint: ", point, "DeleteOutliers");
 		if (point != glm::vec3(FLT_MAX))
 		{
 			float distanceToClosest = glm::length(point - pointClouds[pointCloudIndex]->vertexInfo[i].position);
 			if (distanceToClosest > outliersRange)
 			{
-				debugLog::getInstance().addToLog("distanceToClosest: " + std::to_string(distanceToClosest), "DeleteOutliers");
+				LOG.Add("distanceToClosest: " + std::to_string(distanceToClosest), "DeleteOutliers");
 			}
 		}
 	}
 
-	debugLog::getInstance().addToLog("Time spent in DeleteOutliers: " + std::to_string(GetTickCount() - totalTime) + " ms", "DeleteOutliers");
+	LOG.Add("Time spent in DeleteOutliers: " + std::to_string(GetTickCount() - totalTime) + " ms", "DeleteOutliers");
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestClosestPointInSphereFromUnity(float* center, float size)
 {
-	//debugLog::getInstance().addToLog("===============================", "RequestClosestPointInSphereFromUnity");
+	//LOG.Add("===============================", "RequestClosestPointInSphereFromUnity");
 
 	DWORD totalTime = GetTickCount();
 
@@ -3080,8 +2984,8 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestClosestPointIn
 		return;
 
 	glm::vec3 referencePoint = glm::vec3(center[0], center[1], center[2]);
-	//debugLog::getInstance().addToLog("point", centerOfBrush, "RequestClosestPointInSphereFromUnity");
-	//debugLog::getInstance().addToLog("pointClouds.size(): " + std::to_string(pointClouds.size()), "RequestClosestPointInSphereFromUnity");
+	//LOG.Add("point", centerOfBrush, "RequestClosestPointInSphereFromUnity");
+	//LOG.Add("pointClouds.size(): " + std::to_string(pointClouds.size()), "RequestClosestPointInSphereFromUnity");
 
 	DWORD time = GetTickCount();
 	float minDistance = FLT_MAX;
@@ -3101,8 +3005,8 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestClosestPointIn
 		}
 	}
 
-	//debugLog::getInstance().addToLog("minDistance: " + std::to_string(minDistance), "RequestClosestPointInSphereFromUnity");
-	//debugLog::getInstance().addToLog("Time spent on looking for closest point cloud: " + std::to_string(GetTickCount() - time) + " ms", "RequestClosestPointInSphereFromUnity");
+	//LOG.Add("minDistance: " + std::to_string(minDistance), "RequestClosestPointInSphereFromUnity");
+	//LOG.Add("Time spent on looking for closest point cloud: " + std::to_string(GetTickCount() - time) + " ms", "RequestClosestPointInSphereFromUnity");
 
 	if (minDistance == FLT_MAX)
 		return;
@@ -3137,7 +3041,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestClosestPointIn
 		}
 	}
 
-	//debugLog::getInstance().addToLog("Time spent on binary tightening of search sphere: " + std::to_string(GetTickCount() - time) + " ms", "RequestClosestPointInSphereFromUnity");
+	//LOG.Add("Time spent on binary tightening of search sphere: " + std::to_string(GetTickCount() - time) + " ms", "RequestClosestPointInSphereFromUnity");
 
 	size = lastScaleWithPoints;
 	glm::vec3 closestPoint = glm::vec3(0.0f);
@@ -3160,9 +3064,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestClosestPointIn
 		auto timeDeleteObjects = GetTickCount();
 
 		pointClouds[i]->getSearchOctree()->deleteObjects(localPosition, size);
-		//debugLog::getInstance().addToLog("timeDeleteObjects: " + std::to_string(GetTickCount() - timeDeleteObjects), "RequestClosestPointInSphereFromUnity");
+		//LOG.Add("timeDeleteObjects: " + std::to_string(GetTickCount() - timeDeleteObjects), "RequestClosestPointInSphereFromUnity");
 
-		LOG.addToLog("pointClouds[i]->getSearchOctree()->pointsToDelete.size(): " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
+		LOG.Add("pointClouds[i]->getSearchOctree()->pointsToDelete.size(): " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
 		totalCountOFPoints += int(pointClouds[i]->getSearchOctree()->pointsToDelete.size());
 
 		for (size_t j = 0; j < pointClouds[i]->getSearchOctree()->pointsToDelete.size(); j++)
@@ -3179,15 +3083,15 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestClosestPointIn
 	}
 
 	//if (GetTickCount() - time > 0)
-	//	debugLog::getInstance().addToLog("totalCountOFPoints: " + std::to_string(totalCountOFPoints), "RequestClosestPointInSphereFromUnity");
+	//	LOG.Add("totalCountOFPoints: " + std::to_string(totalCountOFPoints), "RequestClosestPointInSphereFromUnity");
 	
-	//debugLog::getInstance().addToLog("Time spent on search of closest point in search sphere: " + std::to_string(GetTickCount() - time) + " ms", "RequestClosestPointInSphereFromUnity");
+	//LOG.Add("Time spent on search of closest point in search sphere: " + std::to_string(GetTickCount() - time) + " ms", "RequestClosestPointInSphereFromUnity");
 
 	center[0] = closestPoint.x;
 	center[1] = closestPoint.y;
 	center[2] = closestPoint.z;
 
-	//debugLog::getInstance().addToLog("totalTime: " + std::to_string(GetTickCount() - totalTime) + " ms", "RequestClosestPointInSphereFromUnity");
+	//LOG.Add("totalTime: " + std::to_string(GetTickCount() - totalTime) + " ms", "RequestClosestPointInSphereFromUnity");
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API setHighlightDeletedPointsActive(bool active)
@@ -3197,7 +3101,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API setHighlightDeletedPo
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSpherePositionFromUnity(float* center, float size)
 {
-	//debugLog::getInstance().addToLog("UpdateDeletionSpherePositionFromUnity: ", "UpdateDeletionSpherePositionFromUnity");
+	//LOG.Add("UpdateDeletionSpherePositionFromUnity: ", "UpdateDeletionSpherePositionFromUnity");
 	deletionSpherePosition = glm::vec3(center[0], center[1], center[2]);
 	deletionSphereSize = size;
 }
@@ -3210,7 +3114,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //	if (pointClouds.size() == 0 || !pointClouds[0]->wasFullyLoaded || testFrustum == nullptr || (GetTickCount() - startTime < 1000))
 //		return;
 //
-//	//LOG.addToLog("runMyComputeShader()_START: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
+//	//LOG.Add("runMyComputeShader()_START: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 //
 //	ID3D11DeviceContext* ctx = NULL;
 //	GPU.getDevice()->GetImmediateContext(&ctx);
@@ -3238,9 +3142,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //		InitData.pSysMem = &allPointsData_CS[0];
 //		auto result = GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &allPointsDataBuffer_CS);
 //		//HRESULT result = 0;
-//		//LOG.addToLog("pointClouds[0]->vertexInfo.size(): " + std::to_string(pointClouds[0]->vertexInfo.size()), "computeShader");
-//		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf0);: " + std::system_category().message(result), "computeShader");
-//		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf0);: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
+//		//LOG.Add("pointClouds[0]->vertexInfo.size(): " + std::to_string(pointClouds[0]->vertexInfo.size()), "computeShader");
+//		//LOG.Add("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf0);: " + std::system_category().message(result), "computeShader");
+//		//LOG.Add("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf0);: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 //
 //		InitData.pSysMem = &InputData_CS[0];
 //#ifdef FLOAT_TEST
@@ -3251,20 +3155,20 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //#endif // FLOAT_TEST
 //
 //		result = GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &InputDataBuffer_CS);
-//		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf1);: " + std::system_category().message(result), "computeShader");
-//		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf1);: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
+//		//LOG.Add("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf1);: " + std::system_category().message(result), "computeShader");
+//		//LOG.Add("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf1);: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 //		descBuffer.ByteWidth = sizeof(MeshVertex) * pointClouds[0]->vertexInfo.size();
 //		descBuffer.StructureByteStride = sizeof(MeshVertex);
 //		result = GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &resultBuffer_CS);
 //		result = GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &resultBufferSecond_CS);
 //		currentBuffer_CS = &resultBuffer_CS;
-//		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &g_pBufResult);: " + std::system_category().message(result), "computeShader");
-//		//LOG.addToLog("GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &g_pBufResult);: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
+//		//LOG.Add("GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &g_pBufResult);: " + std::system_category().message(result), "computeShader");
+//		//LOG.Add("GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &g_pBufResult);: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 //
 //		// DEBUG
 //		result = allPointsDataBuffer_CS->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Buffer0") - 1, "Buffer0");
-//		//LOG.addToLog("g_pBuf0->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof(\"Buffer0\") - 1, \"Buffer0\");: " + std::system_category().message(result), "computeShader");
-//		//LOG.addToLog("g_pBuf0->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof(\"Buffer0\") - 1, \"Buffer0\");: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
+//		//LOG.Add("g_pBuf0->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof(\"Buffer0\") - 1, \"Buffer0\");: " + std::system_category().message(result), "computeShader");
+//		//LOG.Add("g_pBuf0->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof(\"Buffer0\") - 1, \"Buffer0\");: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 //		InputDataBuffer_CS->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Buffer1") - 1, "Buffer1");
 //		resultBuffer_CS->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Result") - 1, "Result");
 //		// DEBUG
@@ -3326,12 +3230,12 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //		// This is also a common trick to debug CS programs.
 //		p = (MeshVertex*)MappedResource.pData;
 //
-//		/*LOG.addToLog("resultBufferSize: " + std::to_string(MappedResource.RowPitch / sizeof(MeshVertex)), "computeShader");*/
+//		/*LOG.Add("resultBufferSize: " + std::to_string(MappedResource.RowPitch / sizeof(MeshVertex)), "computeShader");*/
 //
 //		//for (int i = 0; i < MappedResource.RowPitch / sizeof(MeshVertex); i++)
 //		//{
-//		//	LOG.addToLog("result[" + std::to_string(i) + "] - X: " + std::to_string(p[i].position.x) + " Y : " + std::to_string(p[i].position.y) + " Z : " + std::to_string(p[i].position.z), "computeShader");
-//		//	//LOG.addToLog("result[" + std::to_string(i) + "] - R: " + std::to_string(p[i].color[0]) + " G : " + std::to_string(p[i].color[1]) + " B : " + std::to_string(p[i].color[2]), "computeShader");
+//		//	LOG.Add("result[" + std::to_string(i) + "] - X: " + std::to_string(p[i].position.x) + " Y : " + std::to_string(p[i].position.y) + " Z : " + std::to_string(p[i].position.z), "computeShader");
+//		//	//LOG.Add("result[" + std::to_string(i) + "] - R: " + std::to_string(p[i].color[0]) + " G : " + std::to_string(p[i].color[1]) + " B : " + std::to_string(p[i].color[2]), "computeShader");
 //		//}
 //
 //		DWORD beforeTime = GetTickCount();
@@ -3348,16 +3252,16 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //		//ctx->UpdateSubresource(pointClouds[0]->intermediateVB, 0, &dbox, MappedResource.pData, pointClouds[0]->getPointCount() * kVertexSize, pointClouds[0]->getPointCount() * kVertexSize);
 //		//ctx->CopySubresourceRegion(pointClouds[0]->mainVB, 0, dbox.left, 0, 0, pointClouds[0]->intermediateVB, 0, &dbox);
 //
-//		/*LOG.addToLog("ctx->CopySubresourceRegion was called", "computeShader");
-//		LOG.addToLog("CPU time :" + std::to_string(GetTickCount() - beforeTime), "computeShader");
-//		LOG.addToLog("testLevel" + std::to_string(testLevel), "computeShader");*/
+//		/*LOG.Add("ctx->CopySubresourceRegion was called", "computeShader");
+//		LOG.Add("CPU time :" + std::to_string(GetTickCount() - beforeTime), "computeShader");
+//		LOG.Add("testLevel" + std::to_string(testLevel), "computeShader");*/
 //
 //		//for (int i = 0; i < pointClouds[0]->vertexInfo.size(); i++)
 //		//{
 //		//	float distance = sqrt(pow(pointClouds[0]->vertexInfo[i].position.x, 2) + pow(pointClouds[0]->vertexInfo[i].position.y, 2) + pow(pointClouds[0]->vertexInfo[i].position.z, 2));
-//		//	LOG.addToLog("p[" + std::to_string(i) + "].x :" + std::to_string(p[i].position.x) + "CPU: " + std::to_string(distance), "computeShader");
+//		//	LOG.Add("p[" + std::to_string(i) + "].x :" + std::to_string(p[i].position.x) + "CPU: " + std::to_string(distance), "computeShader");
 //		//	
-//		//	//LOG.addToLog("p[" + std::to_string(i) + "].x :" + std::to_string(p[i].position.x) + "CPU: " + std::to_string(pointClouds[0]->vertexInfo[i].position.x), "computeShader");
+//		//	//LOG.Add("p[" + std::to_string(i) + "].x :" + std::to_string(p[i].position.x) + "CPU: " + std::to_string(pointClouds[0]->vertexInfo[i].position.x), "computeShader");
 //		//}
 //
 //
@@ -3377,18 +3281,18 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //			}
 //		}
 //
-//		LOG.addToLog("CPU time :" + std::to_string(GetTickCount() - beforeTime), "computeShader");
+//		LOG.Add("CPU time :" + std::to_string(GetTickCount() - beforeTime), "computeShader");
 //
-//		LOG.addToLog("CPU min distance :" + std::to_string(smallestDistance), "computeShader");
-//		LOG.addToLog("CPU point index :" + std::to_string(index), "computeShader");*/
+//		LOG.Add("CPU min distance :" + std::to_string(smallestDistance), "computeShader");
+//		LOG.Add("CPU point index :" + std::to_string(index), "computeShader");*/
 //
-//		//LOG.addToLog("min distance :" + std::to_string(p[0].position.x), "computeShader");
-//		//LOG.addToLog("point index :" + std::to_string(p[1].position.x), "computeShader");
+//		//LOG.Add("min distance :" + std::to_string(p[0].position.x), "computeShader");
+//		//LOG.Add("point index :" + std::to_string(p[1].position.x), "computeShader");
 //
 //		ctx->Unmap(debugbuf, 0);
 //	}
 //
-//	//LOG.addToLog("runMyComputeShader()_END: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
+//	//LOG.Add("runMyComputeShader()_END: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 //}
 
 void runMyDeleteComputeShader(pointCloud* pointCloud)
@@ -3396,7 +3300,7 @@ void runMyDeleteComputeShader(pointCloud* pointCloud)
 	if (pointClouds.size() == 0 || pointCloud == nullptr || !pointCloud->wasFullyLoaded || pointCloud->mainVB == nullptr)
 		return;
 
-	//LOG.addToLog("runMyDeleteComputeShader()_START: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
+	//LOG.Add("runMyDeleteComputeShader()_START: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
 
 	ID3D11DeviceContext* ctx = NULL;
 	GPU.getDevice()->GetImmediateContext(&ctx);
@@ -3413,7 +3317,7 @@ void runMyDeleteComputeShader(pointCloud* pointCloud)
 		descBuffer.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
 		descBuffer.StructureByteStride = sizeof(float);
 		auto result = GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &pointCloud->InputDataBuffer_CS);
-		LOG.addToLog("pointCloud->InputDataBuffer_CS result : " + std::to_string (result), "deleteEvents");
+		LOG.Add("pointCloud->InputDataBuffer_CS result : " + std::to_string (result), "deleteEvents");
 		CreateBufferSRV(GPU.getDevice(), pointCloud->InputDataBuffer_CS, &pointCloud->InputData_CS_SRV);
 
 		/*allPointsData_CS = new MeshVertex[pointCloud->vertexInfo.size()];
@@ -3469,16 +3373,16 @@ void runMyDeleteComputeShader(pointCloud* pointCloud)
 		//new
 	}
 
-	LOG.addToLog("RequestToDeleteFromUnity", "deleteEvents");
+	LOG.Add("RequestToDeleteFromUnity", "deleteEvents");
 	
 	if (GetTickCount() - timeLastTimeCall < 100)
 	{
-		LOG.addToLog("denial RequestToDeleteFromUnity", "deleteEvents");
-		LOG.addToLog("time: " + std::to_string(GetTickCount() - timeLastTimeCall), "deleteEvents");
+		LOG.Add("denial RequestToDeleteFromUnity", "deleteEvents");
+		LOG.Add("time: " + std::to_string(GetTickCount() - timeLastTimeCall), "deleteEvents");
 		//return;
 	}
 
-	LOG.addToLog("NOT denial RequestToDeleteFromUnity", "deleteEvents");
+	LOG.Add("NOT denial RequestToDeleteFromUnity", "deleteEvents");
 	timeLastTimeCall = GetTickCount();
 
 	glm::vec3 localDeletionSpherePosition = glm::inverse(glm::transpose(pointClouds[0]->worldMatrix)) * glm::vec4(deletionSpherePosition, 1.0f);
@@ -3495,7 +3399,7 @@ void runMyDeleteComputeShader(pointCloud* pointCloud)
 
 	if (pointCloud->InputData_CS_SRV == nullptr)
 	{
-		LOG.addToLog("pointCloud->InputData_CS_SRV == nullptr", "deleteEvents");
+		LOG.Add("pointCloud->InputData_CS_SRV == nullptr", "deleteEvents");
 	}
 
 	RunComputeShader(ctx, computeShader, 2, aRViews, nullptr, nullptr, 0, *pointCloud->current_CS_UAV, ceil(pointCloud->vertexInfo.size() / 1024), 1, 1);
@@ -3600,7 +3504,7 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API unLoad(char* pointClo
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API setScreenIndex(int newScreenIndex)
 {
 	//screenIndex = newScreenIndex;
-	//LOG.addToLog("newScreenIndex: " + std::to_string(newScreenIndex), "screens");
+	//LOG.Add("newScreenIndex: " + std::to_string(newScreenIndex), "screens");
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestEPSGFromUnity(char* pointCloudID)
