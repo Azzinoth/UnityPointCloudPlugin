@@ -124,6 +124,8 @@ public:
 	bool wasInitialized = false;
 	bool wasFullyLoaded = false;
 	LAZFileInfo* loadedFrom = nullptr;
+	glm::dvec3 RawMin;
+	glm::dvec3 RawMax;
 	glm::dvec3 min;
 	glm::dvec3 max;
 	glm::dvec3 adjustment;
@@ -139,7 +141,7 @@ public:
 	int lastMinNeighborsInRange;
 	std::vector<int> lastOutliers;
 
-	unsigned short EPSG;
+	unsigned short EPSG = 0;
 	float approximateGroundLevel;
 
 	pointCloud();

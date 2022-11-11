@@ -712,6 +712,7 @@ void LoadManager::LoadFunc(void* InputData, void* OutputData)
 				unsigned short value_offset;
 			};
 
+			PointCloud->EPSG = 0;
 			for (size_t i = 0; i < header->number_of_variable_length_records; i++)
 			{
 				if (header->vlrs[i].record_id == 34735) // GeoKeyDirectoryTag
@@ -897,6 +898,11 @@ void LoadManager::LoadFunc(void* InputData, void* OutputData)
 
 				p_count++;
 			}
+
+			PointCloud->RawMin = PointCloud->min;
+			PointCloud->RawMax = PointCloud->max;
+
+			LOG.Add("PointCloud->RawMin.x: " + std::to_string(PointCloud->RawMin.x), "File_Load_Log");
 
 			//LOG.Add("while (p_count < npoints)", "File_Load_Log");
 
@@ -1151,7 +1157,7 @@ void LoadManager::loadPointCloudAsync(std::string path, std::string projectPath,
 
 bool LoadManager::isLoadingDone()
 {
-	return THREAD_POOL.IsAnyThreadHaveActiveJob();
+	return !THREAD_POOL.IsAnyThreadHaveActiveJob();
 }
 
 SaveManager* SaveManager::Instance = nullptr;
@@ -1363,5 +1369,5 @@ bool SaveManager::SavePointCloudAsync(std::string path, pointCloud* PointCloud)
 
 bool SaveManager::isSaveDone()
 {
-	return THREAD_POOL.IsAnyThreadHaveActiveJob();
+	return !THREAD_POOL.IsAnyThreadHaveActiveJob();
 }

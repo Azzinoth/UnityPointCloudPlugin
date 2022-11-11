@@ -1171,6 +1171,8 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ValidatePointCloudGMF
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity(char* projectFilePath)
 {
+	LOG.SetFileOutput(true);
+
 	LOG.DisableTopicFileOutput("camera");
 	LOG.DisableTopicFileOutput("precision");
 	LOG.DisableTopicFileOutput("screens");
@@ -1728,13 +1730,29 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestPointCloudAdju
 	adjustment[3] = currentPointCloud->initialXShift;
 	adjustment[4] = currentPointCloud->initialZShift;
 
-	adjustment[5] = currentPointCloud->min.x;
-	adjustment[6] = currentPointCloud->min.y;
-	adjustment[7] = currentPointCloud->min.z;
+	/*if (currentPointCloud->NumPy == nullptr)
+	{*/
+		adjustment[5] = currentPointCloud->RawMin.x;
+		adjustment[6] = currentPointCloud->RawMin.y;
+		adjustment[7] = currentPointCloud->RawMin.z;
 
-	adjustment[8] = currentPointCloud->max.x;
-	adjustment[9] = currentPointCloud->max.y;
-	adjustment[10] = currentPointCloud->max.z;
+		//LOG.Add("currentPointCloud->RawMin.x: " + std::to_string(currentPointCloud->RawMin.x), "RequestPointCloudAdjustmentFromUnity");
+
+		adjustment[8] = currentPointCloud->RawMax.x;
+		adjustment[9] = currentPointCloud->RawMax.y;
+		adjustment[10] = currentPointCloud->RawMax.z;
+	/*}
+	else
+	{
+		adjustment[5] = currentPointCloud->min.x;
+		adjustment[6] = currentPointCloud->min.y;
+		adjustment[7] = currentPointCloud->min.z;
+
+		adjustment[8] = currentPointCloud->max.x;
+		adjustment[9] = currentPointCloud->max.y;
+		adjustment[10] = currentPointCloud->max.z;
+	}*/
+	
 
 	/*adjustment[5] = currentPointCloud->getSearchOctree()->root->nodeAABB.min.x;
 	adjustment[6] = currentPointCloud->getSearchOctree()->root->nodeAABB.min.y;
@@ -1746,6 +1764,16 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestPointCloudAdju
 
 	adjustment[11] = currentPointCloud->EPSG;
 	adjustment[12] = currentPointCloud->getApproximateGroundLevel();
+
+	std::string Result;
+	for (size_t i = 0; i < 13; i++)
+	{
+		Result += std::to_string(i) + ": ";
+		Result += std::to_string(adjustment[i]);
+		Result += '\n';
+	}
+
+	LOG.Add(Result, "RequestPointCloudAdjustmentFromUnity");
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestPointCloudUTMZoneFromUnity(int* UTMZone, int* North, char* pointCloudID)
