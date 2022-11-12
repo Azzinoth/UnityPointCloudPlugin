@@ -1289,22 +1289,22 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SaveToOwnFormatFileFr
 	file.write((char*)&pointsToWrite, sizeof(int));
 
 	// Write initialXShift and initialZShift.
-	file.write((char*)&currentPointCloud->initialXShift, sizeof(double));
-	file.write((char*)&currentPointCloud->initialZShift, sizeof(double));
+	file.write((char*)&currentPointCloud->Metrics.InitialXShift, sizeof(double));
+	file.write((char*)&currentPointCloud->Metrics.InitialZShift, sizeof(double));
 
 	// Write adjustment.
-	file.write((char*)&currentPointCloud->adjustment[0], sizeof(float));
-	file.write((char*)&currentPointCloud->adjustment[1], sizeof(float));
-	file.write((char*)&currentPointCloud->adjustment[2], sizeof(float));
+	file.write((char*)&currentPointCloud->Metrics.Adjustment[0], sizeof(float));
+	file.write((char*)&currentPointCloud->Metrics.Adjustment[1], sizeof(float));
+	file.write((char*)&currentPointCloud->Metrics.Adjustment[2], sizeof(float));
 
 	// Write min and max.
-	file.write((char*)&currentPointCloud->min[0], sizeof(float));
-	file.write((char*)&currentPointCloud->min[1], sizeof(float));
-	file.write((char*)&currentPointCloud->min[2], sizeof(float));
+	file.write((char*)&currentPointCloud->Metrics.Min[0], sizeof(float));
+	file.write((char*)&currentPointCloud->Metrics.Min[1], sizeof(float));
+	file.write((char*)&currentPointCloud->Metrics.Min[2], sizeof(float));
 
-	file.write((char*)&currentPointCloud->max[0], sizeof(float));
-	file.write((char*)&currentPointCloud->max[1], sizeof(float));
-	file.write((char*)&currentPointCloud->max[2], sizeof(float));
+	file.write((char*)&currentPointCloud->Metrics.Max[0], sizeof(float));
+	file.write((char*)&currentPointCloud->Metrics.Max[1], sizeof(float));
+	file.write((char*)&currentPointCloud->Metrics.Max[2], sizeof(float));
 
 	// Write root node size.
 	//file.write((char*)&currentPointCloud->getSearchOctree()->root->size, sizeof(float));
@@ -1723,44 +1723,55 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestPointCloudAdju
 	if (currentPointCloud == nullptr)
 		return;
 
-	adjustment[0] = currentPointCloud->adjustment.x;
-	adjustment[1] = currentPointCloud->adjustment.y;
-	adjustment[2] = currentPointCloud->adjustment.z;
+	adjustment[0] = currentPointCloud->Metrics.Adjustment.x;
+	adjustment[1] = currentPointCloud->Metrics.Adjustment.y;
+	adjustment[2] = currentPointCloud->Metrics.Adjustment.z;
 
-	adjustment[3] = currentPointCloud->initialXShift;
-	adjustment[4] = currentPointCloud->initialZShift;
+	adjustment[3] = currentPointCloud->Metrics.InitialXShift;
+	adjustment[4] = currentPointCloud->Metrics.InitialZShift;
 
-	/*if (currentPointCloud->NumPy == nullptr)
-	{*/
-		adjustment[5] = currentPointCloud->RawMin.x;
-		adjustment[6] = currentPointCloud->RawMin.y;
-		adjustment[7] = currentPointCloud->RawMin.z;
+	if (currentPointCloud->NumPy == nullptr)
+	{
+		adjustment[5] = currentPointCloud->Metrics.RawMin.x;
+		adjustment[6] = currentPointCloud->Metrics.RawMin.y;
+		adjustment[7] = currentPointCloud->Metrics.RawMin.z;
 
-		//LOG.Add("currentPointCloud->RawMin.x: " + std::to_string(currentPointCloud->RawMin.x), "RequestPointCloudAdjustmentFromUnity");
+		adjustment[5] *= currentPointCloud->loadedFrom->header.x_scale_factor;
+	    adjustment[5] += currentPointCloud->loadedFrom->header.x_offset;
 
-		adjustment[8] = currentPointCloud->RawMax.x;
-		adjustment[9] = currentPointCloud->RawMax.y;
-		adjustment[10] = currentPointCloud->RawMax.z;
-	/*}
+		adjustment[6] *= currentPointCloud->loadedFrom->header.z_scale_factor;
+		adjustment[6] += currentPointCloud->loadedFrom->header.z_offset;
+
+		adjustment[7] *= currentPointCloud->loadedFrom->header.y_scale_factor;
+		adjustment[7] += currentPointCloud->loadedFrom->header.y_offset;
+
+		//std::swap(adjustment[6], adjustment[7]);
+
+		adjustment[8] = currentPointCloud->Metrics.RawMax.x;
+
+		adjustment[8] *= currentPointCloud->loadedFrom->header.x_scale_factor;
+		adjustment[8] += currentPointCloud->loadedFrom->header.x_offset;
+
+		adjustment[9] = currentPointCloud->Metrics.RawMax.y;
+		adjustment[9] *= currentPointCloud->loadedFrom->header.z_scale_factor;
+		adjustment[9] += currentPointCloud->loadedFrom->header.z_offset;
+
+		adjustment[10] = currentPointCloud->Metrics.RawMax.z;
+		adjustment[10] *= currentPointCloud->loadedFrom->header.y_scale_factor;
+		adjustment[10] += currentPointCloud->loadedFrom->header.y_offset;
+
+		//std::swap(adjustment[9], adjustment[10]);
+	}
 	else
 	{
-		adjustment[5] = currentPointCloud->min.x;
-		adjustment[6] = currentPointCloud->min.y;
-		adjustment[7] = currentPointCloud->min.z;
+		adjustment[5] = currentPointCloud->Metrics.Min.x;
+		adjustment[6] = currentPointCloud->Metrics.Min.y;
+		adjustment[7] = currentPointCloud->Metrics.Min.z;
 
-		adjustment[8] = currentPointCloud->max.x;
-		adjustment[9] = currentPointCloud->max.y;
-		adjustment[10] = currentPointCloud->max.z;
-	}*/
-	
-
-	/*adjustment[5] = currentPointCloud->getSearchOctree()->root->nodeAABB.min.x;
-	adjustment[6] = currentPointCloud->getSearchOctree()->root->nodeAABB.min.y;
-	adjustment[7] = currentPointCloud->getSearchOctree()->root->nodeAABB.min.z;
-
-	adjustment[8] = currentPointCloud->getSearchOctree()->root->nodeAABB.max.x;
-	adjustment[9] = currentPointCloud->getSearchOctree()->root->nodeAABB.max.y;
-	adjustment[10] = currentPointCloud->getSearchOctree()->root->nodeAABB.max.z;*/
+		adjustment[8] = currentPointCloud->Metrics.Max.x;
+		adjustment[9] = currentPointCloud->Metrics.Max.y;
+		adjustment[10] = currentPointCloud->Metrics.Max.z;
+	}
 
 	adjustment[11] = currentPointCloud->EPSG;
 	adjustment[12] = currentPointCloud->getApproximateGroundLevel();

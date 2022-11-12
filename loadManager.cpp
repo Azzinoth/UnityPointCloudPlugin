@@ -308,838 +308,146 @@ void LoadManager::LoadFunc(void* InputData, void* OutputData)
 	pointCloud* PointCloud = Info->currentPointCloud;
 	std::string Path = Info->currentPath;
 
-	if (Path != "" && Path.size() > 4 && std::filesystem::exists(Path))
+	if (PointCloud == nullptr)
 	{
-		double rangeX = 0.0f;
-		double rangeY = 0.0f;
-		double rangeZ = 0.0f;
-
-		double newMinX = DBL_MAX;
-		double newMaxX = -DBL_MAX;
-		double newMinY = DBL_MAX;
-		double newMaxY = -DBL_MAX;
-		double newMinZ = DBL_MAX;
-		double newMaxZ = -DBL_MAX;
-
-		LAZFileInfo* fileInfo = nullptr;
-
-		LOG.Add("Coping file from original location: " + Path, "File_Load_Log");
-		LOG.Add("To new location: " + Info->currentProjectPath + "/Resources/CCOM/PointCloud/Data/", "File_Load_Log");
-			
-		std::filesystem::path newLocation = Info->currentProjectPath + "/Resources/CCOM/PointCloud/Data/" + std::filesystem::path(Path).filename().string();
-		if (!std::filesystem::exists(newLocation) && std::filesystem::exists(Info->currentProjectPath + "/Resources/CCOM/PointCloud/Data/"))
-		{
-			std::filesystem::copy(Path, Info->currentProjectPath + "/Resources/CCOM/PointCloud/Data/" + std::filesystem::path(Path).filename().string());
-		}
-		else
-		{
-			newLocation = Path;
-		}
-
-		PointCloud->filePath = newLocation.string();
-
-		// if file is in our own format
-		if (Path[Path.size() - 4] == '.' &&
-			Path[Path.size() - 3] == 'c' &&
-			Path[Path.size() - 2] == 'p' &&
-			Path[Path.size() - 1] == 'c')
-		{
-			std::fstream file;
-			file.open(Path, std::ios::in | std::ios::binary);
-
-			char* buffer = new char[sizeof(float)];
-
-			// Read how many points does the file have.
-			file.read(buffer, sizeof(int));
-			int pointCount = *(int*)buffer;
-
-			// Read initialXShift and initialZShift.
-			file.read(buffer, sizeof(double));
-			PointCloud->initialXShift = *(double*)buffer;
-			file.read(buffer, sizeof(double));
-			PointCloud->initialZShift = *(double*)buffer;
-
-			// Read adjustment.
-			file.read(buffer, sizeof(float));
-			PointCloud->adjustment[0] = *(float*)buffer;
-			file.read(buffer, sizeof(float));
-			PointCloud->adjustment[1] = *(float*)buffer;
-			file.read(buffer, sizeof(float));
-			PointCloud->adjustment[2] = *(float*)buffer;
-
-			// Read min and max.
-			file.read(buffer, sizeof(float));
-			PointCloud->min[0] = *(float*)buffer;
-			file.read(buffer, sizeof(float));
-			PointCloud->min[1] = *(float*)buffer;
-			file.read(buffer, sizeof(float));
-			PointCloud->min[2] = *(float*)buffer;
-
-			file.read(buffer, sizeof(float));
-			PointCloud->max[0] = *(float*)buffer;
-			file.read(buffer, sizeof(float));
-			PointCloud->max[1] = *(float*)buffer;
-			file.read(buffer, sizeof(float));
-			PointCloud->max[2] = *(float*)buffer;
-
-			newMinX = PointCloud->min.x;
-			newMaxX = PointCloud->max.x;
-			newMinY = PointCloud->min.y;
-			newMaxY = PointCloud->max.y;
-			newMinZ = PointCloud->min.z;
-			newMaxZ = PointCloud->max.z;
-
-			rangeX = PointCloud->max.x - PointCloud->min.x;
-			rangeY = PointCloud->max.y - PointCloud->min.y;
-			rangeZ = PointCloud->max.z - PointCloud->min.z;
-
-			LOG.Add("rangeX: " + std::to_string(rangeX), "File_Load_Log");
-			LOG.Add("rangeY: " + std::to_string(rangeY), "File_Load_Log");
-			LOG.Add("rangeZ: " + std::to_string(rangeZ), "File_Load_Log");
-
-			LOG.Add("adjustment.x: " + std::to_string(PointCloud->adjustment.x), "File_Load_Log");
-			LOG.Add("adjustment.y: " + std::to_string(PointCloud->adjustment.y), "File_Load_Log");
-			LOG.Add("adjustment.z: " + std::to_string(PointCloud->adjustment.z), "File_Load_Log");
-
-			LOG.Add("contains " + std::to_string(pointCount) + " points", "File_Load_Log");
-
-			if (PointCloud == nullptr)
-				LOG.Add("PointCloud = nullptr", "File_Load_Log");
-
-			PointCloud->vertexInfo.resize(pointCount);
-#ifdef LOD_SYSTEM
-			PointCloud->LODs.resize(pointCloud::LODSettings.size());
-#endif
-
-			char* rawPointData = new char[pointCount * sizeof(MeshVertex)];
-			file.read(rawPointData, pointCount * sizeof(MeshVertex));
-
-			MeshVertex* temp = (MeshVertex*)rawPointData;
-			for (size_t i = 0; i < pointCount; i++)
-			{
-				/*LOG.Add("(temp + i * sizeof(MeshVertex))->position.x: " + std::to_string((temp + i * sizeof(MeshVertex))->position.x), "testLoad");
-				LOG.Add("(temp + i * sizeof(MeshVertex))->position.y: " + std::to_string((temp + i * sizeof(MeshVertex))->position.y), "testLoad");
-				LOG.Add("(temp + i * sizeof(MeshVertex))->position.z: " + std::to_string((temp + i * sizeof(MeshVertex))->position.z), "testLoad");
-
-				LOG.Add("(temp + i * sizeof(MeshVertex))->color[0]: " + std::to_string((temp + i * sizeof(MeshVertex))->color[0]), "testLoad");
-				LOG.Add("(temp + i * sizeof(MeshVertex))->color[1]: " + std::to_string((temp + i * sizeof(MeshVertex))->color[1]), "testLoad");
-				LOG.Add("(temp + i * sizeof(MeshVertex))->color[2]: " + std::to_string((temp + i * sizeof(MeshVertex))->color[2]), "testLoad");
-				LOG.Add("(temp + i * sizeof(MeshVertex))->color[3]: " + std::to_string((temp + i * sizeof(MeshVertex))->color[3]), "testLoad");*/
-				
-				PointCloud->vertexInfo[i].position[0] = (temp + i)->position.x;
-				PointCloud->vertexInfo[i].position[1] = (temp + i)->position.y;
-				PointCloud->vertexInfo[i].position[2] = (temp + i)->position.z;
-				PointCloud->vertexInfo[i].color[0] = (temp + i)->color[0];
-				PointCloud->vertexInfo[i].color[1] = (temp + i)->color[1];
-				PointCloud->vertexInfo[i].color[2] = (temp + i)->color[2];
-
-#ifdef LOD_SYSTEM
-				for (size_t j = 0; j < pointCloud::LODSettings.size(); j++)
-				{
-					if (i % pointCloud::LODSettings[j].takeEach_Nth_Point == 0)
-					{
-						PointCloud->LODs[j].vertexInfo.resize(PointCloud->LODs[j].vertexInfo.size() + 1);
-						PointCloud->LODs[j].vertexInfo.back().position[0] = PointCloud->vertexInfo[i].position[0];
-						PointCloud->LODs[j].vertexInfo.back().position[1] = PointCloud->vertexInfo[i].position[1];
-						PointCloud->LODs[j].vertexInfo.back().position[2] = PointCloud->vertexInfo[i].position[2];
-						PointCloud->LODs[j].vertexInfo.back().color[0] = PointCloud->vertexInfo[i].color[0];
-						PointCloud->LODs[j].vertexInfo.back().color[1] = PointCloud->vertexInfo[i].color[1];
-						PointCloud->LODs[j].vertexInfo.back().color[2] = PointCloud->vertexInfo[i].color[2];
-					}
-				}
-#endif
-			}
-		}
-		else if ((Path[Path.size() - 4] == '.' &&
-				  Path[Path.size() - 3] == 'n' &&
-				  Path[Path.size() - 2] == 'p' &&
-				  Path[Path.size() - 1] == 'y')
-				  
-				  ||
-
-				 (Path[Path.size() - 4] == '.' &&
-				  Path[Path.size() - 3] == 'n' &&
-				  Path[Path.size() - 2] == 'p' &&
-				  Path[Path.size() - 1] == 'z'))
-		{
-			PointCloud->NumPy = new NumPyInfo();
-			PointCloud->NumPy->WKT = GetWKT(Path);
-			PointCloud->NumPy->WKT.erase(PointCloud->NumPy->WKT.begin(),
-			PointCloud->NumPy->WKT.begin() + PointCloud->NumPy->WKT.find("PROJCS"));
-
-			PointCloud->NumPy->AllEPSG = GetEPSG(PointCloud->NumPy->WKT);
-			PointCloud->NumPy->MinMax = GetMinMax(Path);
-
-			LOG.Add("EPSG: " + PointCloud->NumPy->AllEPSG.back(), "EPSG");
-			PointCloud->EPSG = atoi(PointCloud->NumPy->AllEPSG.back().c_str());
-
-			cnpy::NpyArray DataVar = cnpy::npz_load(Path, "data");
-
-			auto FinalData = DataVar.data_holder.get();
-			size_t Count = DataVar.num_vals;
-			size_t SizePerValue = FinalData->size() / Count;
-
-			double UncertaintyMin = DBL_MAX;
-			double UncertaintyMax = -DBL_MAX;
-
-			int Iteration = 0;
-			char* word = new char[8];
-			for (size_t i = 0; i < FinalData->size() / 8; i++)
-			{
-				for (size_t j = 0; j < 8; j++)
-				{
-				    word[j] = FinalData->operator[](i * 8 + j);
-				}
-
-				double tempValue = *reinterpret_cast<double*>(word);
-				    
-				if (Iteration == 0)
-				{
-					PointCloud->NumPy->LoadedRawData.resize(PointCloud->NumPy->LoadedRawData.size() + 1);
-					PointCloud->NumPy->LoadedRawData.back().X = tempValue;
-
-					PointCloud->vertexInfo.resize(PointCloud->vertexInfo.size() + 1);
-					PointCloud->vertexInfo.back().position.x = tempValue;
-
-					if (newMinX > tempValue)
-						newMinX = tempValue;
-
-					if (newMaxX < tempValue)
-						newMaxX = tempValue;
-				}
-				// Z and Y is flipped.
-				else if (Iteration == 1)
-				{
-					PointCloud->NumPy->LoadedRawData.back().Y = tempValue;
-					PointCloud->vertexInfo.back().position.z = tempValue;
-
-					if (newMinZ > tempValue)
-						newMinZ = tempValue;
-
-					if (newMaxZ < tempValue)
-						newMaxZ = tempValue;
-				}
-				else if (Iteration == 2)
-				{
-					PointCloud->NumPy->LoadedRawData.back().Z = tempValue;
-					PointCloud->vertexInfo.back().position.y = tempValue;
-
-					if (newMinY > tempValue)
-						newMinY = tempValue;
-
-					if (newMaxY < tempValue)
-						newMaxY = tempValue;
-						
-				}
-				else if (Iteration == 3)
-				{
-					PointCloud->NumPy->LoadedRawData.back().Uncertainty = tempValue;
-
-					if (UncertaintyMin > tempValue)
-						UncertaintyMin = tempValue;
-
-					if (UncertaintyMax < tempValue)
-						UncertaintyMax = tempValue;
-				}
-
-				Iteration++;
-				if (Iteration > 3)
-				    Iteration = 0;
-			}
-
-			rangeX = newMaxX - newMinX;
-			rangeY = newMaxY - newMinY;
-			rangeZ = newMaxZ - newMinZ;
-
-			PointCloud->adjustment.x = newMinX;
-			PointCloud->adjustment.y = newMinY;
-			PointCloud->adjustment.z = newMinZ;
-
-			newMinX = DBL_MAX;
-			newMaxX = -DBL_MAX;
-			newMinY = DBL_MAX;
-			newMaxY = -DBL_MAX;
-			newMinZ = DBL_MAX;
-			newMaxZ = -DBL_MAX;
-
-			double UncertaintyRange = UncertaintyMax - UncertaintyMin;
-			glm::vec3 CertainPointsColor = glm::vec3(1.0f);
-			glm::vec3 UnCertainPointsColor = glm::vec3(1.0f, 0.0f, 0.0f);
-
-			for (int i = 0; i < PointCloud->vertexInfo.size(); i++)
-			{
-				PointCloud->vertexInfo[i].position.x = PointCloud->vertexInfo[i].position.x - PointCloud->adjustment.x;
-				PointCloud->vertexInfo[i].position.y = PointCloud->vertexInfo[i].position.y - PointCloud->adjustment.y;
-				PointCloud->vertexInfo[i].position.z = PointCloud->vertexInfo[i].position.z - PointCloud->adjustment.z;
-					
-				if (newMinX > PointCloud->vertexInfo[i].position.x)
-					newMinX = PointCloud->vertexInfo[i].position.x;
-
-				if (newMaxX < PointCloud->vertexInfo[i].position.x)
-					newMaxX = PointCloud->vertexInfo[i].position.x;
-
-				if (newMinY > PointCloud->vertexInfo[i].position.y)
-					newMinY = PointCloud->vertexInfo[i].position.y;
-
-				if (newMaxY < PointCloud->vertexInfo[i].position.y)
-					newMaxY = PointCloud->vertexInfo[i].position.y;
-
-				if (newMinZ > PointCloud->vertexInfo[i].position.z)
-					newMinZ = PointCloud->vertexInfo[i].position.z;
-
-				if (newMaxZ < PointCloud->vertexInfo[i].position.z)
-					newMaxZ = PointCloud->vertexInfo[i].position.z;
-
-				double HowCertainPointIs = (UncertaintyMax - PointCloud->NumPy->LoadedRawData[i].Uncertainty) / UncertaintyRange;
-				glm::vec3 ColorMixFactor = glm::vec3(HowCertainPointIs);
-
-				glm::vec3 Color = CertainPointsColor * ColorMixFactor + UnCertainPointsColor * (glm::vec3(1.0f) - ColorMixFactor);
-
-				PointCloud->vertexInfo[i].color[0] = unsigned char(Color.x * 255);
-				PointCloud->vertexInfo[i].color[1] = unsigned char(Color.y * 255);
-				PointCloud->vertexInfo[i].color[2] = unsigned char(Color.z * 255);
-			}
-
-			LOG.Add("newMinX: " + std::to_string(newMinX), "File_Load_Log");
-			LOG.Add("newMinY: " + std::to_string(newMinY), "File_Load_Log");
-			LOG.Add("newMinZ: " + std::to_string(newMinZ), "File_Load_Log");
-		}
-		else
-		{
-			// create the reader
-			laszip_POINTER laszip_reader;
-
-			laszip_I32 error = laszip_create(&laszip_reader);
-			if (error)
-			{
-				LOG.Add("Creating laszip reader failed", "DLL_ERRORS");
-				LOG.Add("Error: " + std::to_string(error), "DLL_ERRORS");
-				return;
-			}
-
-			// open the reader
-			laszip_BOOL is_compressed = 0;
-			if (laszip_open_reader(laszip_reader, Path.c_str(), &is_compressed))
-			{
-				LOG.Add("opening laszip reader for " + Path + " failed", "DLL_ERRORS");
-				return;
-			}
-
-			// get a pointer to the header of the reader that was just populated
-			laszip_header* header;
-			if (laszip_get_header_pointer(laszip_reader, &header))
-			{
-				LOG.Add("getting header pointer from laszip reader failed", "DLL_ERRORS");
-				return;
-			}
-
-			fileInfo = new LAZFileInfo();
-			copyLAZFileHeader(&fileInfo->header, header);
-			fileInfo->compressed = is_compressed;
-
-			LOG.Add("Compressed: " + std::string(is_compressed ? "true" : "false"), "File_Load_Log");
-			LOG.Add("Signature: " + std::string(header->generating_software), "File_Load_Log");
-			LOG.Add("Points count: " + std::to_string(header->number_of_point_records), "File_Load_Log");
-			LOG.Add("X Min: " + std::to_string(header->min_x), "File_Load_Log");
-			LOG.Add("X Max: " + std::to_string(header->max_x), "File_Load_Log");
-			LOG.Add("Y Min: " + std::to_string(header->min_y), "File_Load_Log");
-			LOG.Add("Y Max: " + std::to_string(header->max_y), "File_Load_Log");
-			LOG.Add("Z Min: " + std::to_string(header->min_z), "File_Load_Log");
-			LOG.Add("Z Max: " + std::to_string(header->max_z), "File_Load_Log");
-
-			// how many points does the file have
-			laszip_U64 npoints = (header->number_of_point_records ? header->number_of_point_records : header->extended_number_of_point_records);
-
-			LOG.Add("contains " + std::to_string(npoints) + " points", "File_Load_Log");
-
-			if (PointCloud == nullptr)
-				LOG.Add("PointCloud = nullptr", "File_Load_Log");
-
-#ifdef USE_QUADS_NOT_POINTS
-			PointCloud->vertexInfo.resize(npoints * 6);
-#else
-			PointCloud->vertexInfo.resize(npoints);
-			std::vector<glm::dvec3> tempVertex;
-			tempVertex.resize(npoints);
-#endif
-			PointCloud->vertexIntensity.resize(npoints);
-
-			PointCloud->min = glm::dvec3(DBL_MAX);
-			PointCloud->max = glm::dvec3(-DBL_MAX);
-
-			for (size_t i = 0; i < header->number_of_variable_length_records; i++)
-			{
-				if (header->vlrs[i].record_length_after_header)
-				{
-					std::string text = reinterpret_cast<char*>(header->vlrs[i].data);
-
-					size_t position = text.find("NAD_1983_2011_UTM_Zone_");
-					size_t position1 = text.find("UTM zone ");
-
-					if (position != std::string::npos)
-					{
-						PointCloud->spatialInfo = text;
-						LOG.Add("spatialInfo: " + PointCloud->spatialInfo, "File_Load_Log");
-						PointCloud->UTMZone = text.substr(position + strlen("NAD_1983_2011_UTM_Zone_"), 3);
-						LOG.Add("UTMZone: " + PointCloud->UTMZone, "File_Load_Log");
-						break;
-					}
-					else if (position1 != std::string::npos)
-					{
-						PointCloud->spatialInfo = text;
-						LOG.Add("spatialInfo: " + PointCloud->spatialInfo, "File_Load_Log");
-						PointCloud->UTMZone = text.substr(position + strlen("UTM zone "), 3);
-						LOG.Add("UTMZone: " + PointCloud->UTMZone, "File_Load_Log");
-						break;
-					}
-				}
-			}
-
-			class LASvlr_geo_keys
-			{
-			public:
-				unsigned short key_directory_version;
-				unsigned short key_revision;
-				unsigned short minor_revision;
-				unsigned short number_of_keys;
-			};
-
-			struct GeoProjectionGeoKeys
-			{
-				unsigned short key_id;
-				unsigned short tiff_tag_location;
-				unsigned short count;
-				unsigned short value_offset;
-			};
-
-			PointCloud->EPSG = 0;
-			for (size_t i = 0; i < header->number_of_variable_length_records; i++)
-			{
-				if (header->vlrs[i].record_id == 34735) // GeoKeyDirectoryTag
-				{
-					LASvlr_geo_keys* read = new LASvlr_geo_keys[1];
-					memcpy_s(read, sizeof(unsigned short) * 4, header->vlrs[i].data, sizeof(unsigned short) * 4);
-
-					GeoProjectionGeoKeys* readKeys = new GeoProjectionGeoKeys[read->number_of_keys];
-					memcpy_s(readKeys, read->number_of_keys * sizeof(GeoProjectionGeoKeys),
-										header->vlrs[i].data + sizeof(unsigned short) * 4, read->number_of_keys * sizeof(unsigned short) * 4);
-
-					for (int j = 0; j < read->number_of_keys; j++)
-					{
-						if (readKeys[j].key_id != 3072)
-							continue;
-
-						//std::cout << "index: " << j << std::endl;
-						//std::cout << "key_id: " << readKeys[j].key_id << std::endl;
-						//std::cout << "tiff_tag_location: " << readKeys[j].tiff_tag_location << std::endl;
-						//std::cout << "count: " << readKeys[j].count << std::endl;
-						//std::cout << "value_offset: " << readKeys[j].value_offset << std::endl;
-
-						LOG.Add("EPSG: " + std::to_string(readKeys[j].value_offset), "EPSG");
-						PointCloud->EPSG = readKeys[j].value_offset;
-					}
-				}
-			}
-
-			// get a pointer to the points that will be read
-			laszip_point* point;
-			if (laszip_get_point_pointer(laszip_reader, &point))
-			{
-				LOG.Add("getting point pointer from laszip reader failed", "DLL_ERRORS");
-				return;
-			}
-
-#ifdef LOD_SYSTEM
-			PointCloud->LODs.resize(pointCloud::LODSettings.size());
-#endif
-
-			LOG.Add("header->x_scale_factor : " + std::to_string(header->x_scale_factor), "File_Load_Log");
-			LOG.Add("header->z_scale_factor : " + std::to_string(header->z_scale_factor), "File_Load_Log");
-			LOG.Add("header->y_scale_factor : " + std::to_string(header->y_scale_factor), "File_Load_Log");
-
-			// read the points
-			laszip_U64 p_count = 0;
-			std::vector<MeshVertex> points;
-			float maxIntensity = -FLT_MAX;
-			while (p_count < npoints)
-			{
-				// read a point
-				if (laszip_read_point(laszip_reader))
-				{
-					LOG.Add("reading point " + std::to_string(p_count) + " failed", "DLL_ERRORS");
-					return;
-				}
-
-				//LOG.Add("if (laszip_read_point(laszip_reader)): " + std::to_string(p_count), "File_Load_Log");
-				fileInfo->LAZpoints.push_back(laszip_point(*point));
-
-				// point->X -> lonX, point->Y -> latY, point->Z -> depth
-				double readX = point->X * header->x_scale_factor;
-				double readY = point->Z * header->z_scale_factor;
-				double readZ = point->Y * header->y_scale_factor;
-
-				//LOG.Add("float readZ : " + std::to_string(p_count), "File_Load_Log");
-
-#ifdef USE_QUADS_NOT_POINTS
-				//PointCloud->vertexInfo[p_count].position[0] = readX;
-				//PointCloud->vertexInfo[p_count].position[1] = readY;
-				//PointCloud->vertexInfo[p_count].position[2] = readZ;
-
-				double quad_size = 2.0;
-				int tempCount = p_count * 6;
-				if (tempCount < PointCloud->vertexInfo.size())
-				{
-					PointCloud->vertexInfo[tempCount].position[0] = readX + quad_size;
-					PointCloud->vertexInfo[tempCount].position[1] = readY + quad_size;
-					PointCloud->vertexInfo[tempCount].position[2] = readZ + 0.0f;
-					PointCloud->vertexInfo[tempCount].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
-
-					PointCloud->vertexInfo[tempCount + 1].position[0] = readX + -quad_size;
-					PointCloud->vertexInfo[tempCount + 1].position[1] = readY + quad_size;
-					PointCloud->vertexInfo[tempCount + 1].position[2] = readZ + 0.0f;
-					PointCloud->vertexInfo[tempCount + 1].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount + 1].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount + 1].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
-
-					PointCloud->vertexInfo[tempCount + 2].position[0] = readX + -quad_size;
-					PointCloud->vertexInfo[tempCount + 2].position[1] = readY + -quad_size;
-					PointCloud->vertexInfo[tempCount + 2].position[2] = readZ + 0.0f;
-					PointCloud->vertexInfo[tempCount + 2].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount + 2].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount + 2].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
-
-					PointCloud->vertexInfo[tempCount + 3].position[0] = readX + quad_size;
-					PointCloud->vertexInfo[tempCount + 3].position[1] = readY + -quad_size;
-					PointCloud->vertexInfo[tempCount + 3].position[2] = readZ + 0.0f;
-					PointCloud->vertexInfo[tempCount + 3].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount + 3].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount + 3].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
-
-					PointCloud->vertexInfo[tempCount + 4].position[0] = readX + -quad_size;
-					PointCloud->vertexInfo[tempCount + 4].position[1] = readY + -quad_size;
-					PointCloud->vertexInfo[tempCount + 4].position[2] = readZ + 0.0f;
-					PointCloud->vertexInfo[tempCount + 4].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount + 4].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount + 4].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
-
-					PointCloud->vertexInfo[tempCount + 5].position[0] = readX + quad_size;
-					PointCloud->vertexInfo[tempCount + 5].position[1] = readY + quad_size;
-					PointCloud->vertexInfo[tempCount + 5].position[2] = readZ + 0.0f;
-					PointCloud->vertexInfo[tempCount + 5].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount + 5].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
-					PointCloud->vertexInfo[tempCount + 5].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
-				}
-
-#else
-				//PointCloud->vertexInfo[p_count].position[0] = readX;
-				//PointCloud->vertexInfo[p_count].position[1] = readY;
-				//PointCloud->vertexInfo[p_count].position[2] = readZ;
-
-				tempVertex[p_count].x = readX;
-				tempVertex[p_count].y = readY;
-				tempVertex[p_count].z = readZ;
-
-				/*if (p_count < 1000)
-				{
-					LOG.Add("readX : " + std::to_string(readX), "precision");
-					LOG.Add("readY : " + std::to_string(readY), "precision");
-					LOG.Add("readZ : " + std::to_string(readZ), "precision");
-
-					LOG.Add("PointCloud->vertexInfo[p_count].position[0] : " + std::to_string(PointCloud->vertexInfo[p_count].position[0]), "precision");
-					LOG.Add("PointCloud->vertexInfo[p_count].position[1] : " + std::to_string(PointCloud->vertexInfo[p_count].position[1]), "precision");
-					LOG.Add("PointCloud->vertexInfo[p_count].position[2] : " + std::to_string(PointCloud->vertexInfo[p_count].position[2]), "precision");
-				}*/
-
-				PointCloud->vertexInfo[p_count].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
-				PointCloud->vertexInfo[p_count].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
-				PointCloud->vertexInfo[p_count].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
-#endif
-
-
-#ifdef LOD_SYSTEM
-				for (size_t i = 0; i < pointCloud::LODSettings.size(); i++)
-				{
-					if (p_count % pointCloud::LODSettings[i].takeEach_Nth_Point == 0)
-					{
-						PointCloud->LODs[i].vertexInfo.resize(PointCloud->LODs[i].vertexInfo.size() + 1);
-						PointCloud->LODs[i].vertexInfo.back().position[0] = PointCloud->vertexInfo[p_count].position[0];
-						PointCloud->LODs[i].vertexInfo.back().position[1] = PointCloud->vertexInfo[p_count].position[1];
-						PointCloud->LODs[i].vertexInfo.back().position[2] = PointCloud->vertexInfo[p_count].position[2];
-						PointCloud->LODs[i].vertexInfo.back().color[0] = PointCloud->vertexInfo[p_count].color[0];
-						PointCloud->LODs[i].vertexInfo.back().color[1] = PointCloud->vertexInfo[p_count].color[1];
-						PointCloud->LODs[i].vertexInfo.back().color[2] = PointCloud->vertexInfo[p_count].color[2];
-					}
-				}
-#endif
-
-				PointCloud->vertexIntensity[p_count] = point->intensity;
-				if (maxIntensity < point->intensity)
-					maxIntensity = point->intensity;
-
-				if (PointCloud->min.x > readX)
-					PointCloud->min.x = readX;
-
-				if (PointCloud->max.x < readX)
-					PointCloud->max.x = readX;
-
-				if (PointCloud->min.y > readY)
-					PointCloud->min.y = readY;
-
-				if (PointCloud->max.y < readY)
-					PointCloud->max.y = readY;
-
-				if (PointCloud->min.z > readZ)
-					PointCloud->min.z = readZ;
-
-				if (PointCloud->max.z < readZ)
-					PointCloud->max.z = readZ;
-
-				p_count++;
-			}
-
-			PointCloud->RawMin = PointCloud->min;
-			PointCloud->RawMax = PointCloud->max;
-
-			LOG.Add("PointCloud->RawMin.x: " + std::to_string(PointCloud->RawMin.x), "File_Load_Log");
-
-			//LOG.Add("while (p_count < npoints)", "File_Load_Log");
-
-			if (header->point_data_format == 1)
-			{
-				for (size_t i = 0; i < p_count; i++)
-				{
-					PointCloud->vertexInfo[i].color[0] = unsigned char(PointCloud->vertexIntensity[i] / maxIntensity * 255);
-					PointCloud->vertexInfo[i].color[1] = unsigned char(PointCloud->vertexIntensity[i] / maxIntensity * 255);
-					PointCloud->vertexInfo[i].color[2] = unsigned char(PointCloud->vertexIntensity[i] / maxIntensity * 255);
-
-#ifdef LOD_SYSTEM
-					for (size_t j = 0; j < PointCloud->LODs.size(); j++)
-					{
-						if (i % pointCloud::LODSettings[j].takeEach_Nth_Point == 0)
-						{
-							PointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].color[0] = PointCloud->vertexInfo[i].color[0];
-							PointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].color[1] = PointCloud->vertexInfo[i].color[1];
-							PointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].color[2] = PointCloud->vertexInfo[i].color[2];
-						}
-					}
-#endif
-						
-				}
-			}
-
-			PointCloud->initialZShift = PointCloud->max.z < PointCloud->min.z ? PointCloud->max.z : PointCloud->min.z;
-			PointCloud->initialZShift = header->min_y - PointCloud->initialZShift;
-
-			if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
-			{
-				LOG.Add("header does not contain offset", "File_Load_Log");
-
-				rangeX = PointCloud->max.x - PointCloud->min.x;
-				rangeY = PointCloud->max.y - PointCloud->min.y;
-				rangeZ = PointCloud->max.z - PointCloud->min.z;
-
-				PointCloud->adjustment.x = -PointCloud->min.x;
-				PointCloud->adjustment.y = -PointCloud->min.y;
-				PointCloud->adjustment.z = -PointCloud->min.z;
-			}
-			else
-			{
-				LOG.Add("header contain offset", "File_Load_Log");
-				LOG.Add("header->x_offset : " + std::to_string(header->x_offset), "File_Load_Log");
-				LOG.Add("header->y_offset : " + std::to_string(header->y_offset), "File_Load_Log");
-				LOG.Add("header->z_offset : " + std::to_string(header->z_offset), "File_Load_Log");
-
-				rangeX = PointCloud->max.x - PointCloud->min.x;
-				rangeY = PointCloud->max.y - PointCloud->min.y;
-				rangeZ = PointCloud->max.z - PointCloud->min.z;
-
-				PointCloud->adjustment.x = -header->x_offset;
-				PointCloud->adjustment.y = -header->y_offset;
-				PointCloud->adjustment.z = -header->z_offset;
-			}
-
-			LOG.Add("rangeX: " + std::to_string(rangeX), "File_Load_Log");
-			LOG.Add("rangeY: " + std::to_string(rangeY), "File_Load_Log");
-			LOG.Add("rangeZ: " + std::to_string(rangeZ), "File_Load_Log");
-
-			LOG.Add("adjustment.x: " + std::to_string(PointCloud->adjustment.x), "File_Load_Log");
-			LOG.Add("adjustment.y: " + std::to_string(PointCloud->adjustment.y), "File_Load_Log");
-			LOG.Add("adjustment.z: " + std::to_string(PointCloud->adjustment.z), "File_Load_Log");
-
-			for (int i = 0; i < npoints; i++)
-			{
-				if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
-				{
-					//PointCloud->vertexInfo[i].position[0] = PointCloud->vertexInfo[i].position[0] + PointCloud->adjustment.x;
-					//PointCloud->vertexInfo[i].position[1] = PointCloud->vertexInfo[i].position[1] + PointCloud->adjustment.y;
-					//PointCloud->vertexInfo[i].position[2] = PointCloud->vertexInfo[i].position[2] + PointCloud->adjustment.z;
-						
-					tempVertex[i].x = tempVertex[i].x + PointCloud->adjustment.x;
-					tempVertex[i].y = tempVertex[i].y + PointCloud->adjustment.y;
-					tempVertex[i].z = tempVertex[i].z + PointCloud->adjustment.z;
-				}
-				else
-				{
-					//PointCloud->vertexInfo[i].position[0] = PointCloud->vertexInfo[i].position[0] + float(PointCloud->adjustment.x * header->x_scale_factor);
-					//PointCloud->vertexInfo[i].position[1] = PointCloud->vertexInfo[i].position[1] + float(PointCloud->adjustment.y * header->y_scale_factor);
-					//PointCloud->vertexInfo[i].position[2] = PointCloud->vertexInfo[i].position[2] + float(PointCloud->adjustment.z * header->z_scale_factor);
-					
-					tempVertex[i].x = tempVertex[i].x + PointCloud->adjustment.x * header->x_scale_factor;
-					tempVertex[i].y = tempVertex[i].y + PointCloud->adjustment.y * header->y_scale_factor;
-					tempVertex[i].z = tempVertex[i].z + PointCloud->adjustment.z * header->z_scale_factor;
-				}
-
-				if (newMinX > tempVertex[i].x)
-					newMinX = tempVertex[i].x;
-
-				if (newMaxX < tempVertex[i].x)
-					newMaxX = tempVertex[i].x;
-
-				if (newMinY > tempVertex[i].y)
-					newMinY = tempVertex[i].y;
-
-				if (newMaxY < tempVertex[i].y)
-					newMaxY = tempVertex[i].y;
-
-				if (newMinZ > tempVertex[i].z)
-					newMinZ = tempVertex[i].z;
-
-				if (newMaxZ < tempVertex[i].z)
-					newMaxZ = tempVertex[i].z;
-
-
-				PointCloud->vertexInfo[i].position[0] = float(tempVertex[i].x);
-				PointCloud->vertexInfo[i].position[1] = float(tempVertex[i].y);
-				PointCloud->vertexInfo[i].position[2] = float(tempVertex[i].z);
-
-				if (i < 1000)
-				{
-					LOG.Add("2) PointCloud->vertexInfo[i].position[0] : " + std::to_string(PointCloud->vertexInfo[i].position[0]), "precision");
-					LOG.Add("2) PointCloud->vertexInfo[i].position[1] : " + std::to_string(PointCloud->vertexInfo[i].position[1]), "precision");
-					LOG.Add("2) PointCloud->vertexInfo[i].position[2] : " + std::to_string(PointCloud->vertexInfo[i].position[2]), "precision");
-				}
-
-#ifdef LOD_SYSTEM
-				for (size_t j = 0; j < PointCloud->LODs.size(); j++)
-				{
-					if (i % pointCloud::LODSettings[j].takeEach_Nth_Point == 0)
-					{
-						PointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].position[0] = PointCloud->vertexInfo[i].position[0];
-						PointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].position[1] = PointCloud->vertexInfo[i].position[1];
-						PointCloud->LODs[j].vertexInfo[i / pointCloud::LODSettings[j].takeEach_Nth_Point].position[2] = PointCloud->vertexInfo[i].position[2];
-					}
-				}
-#endif
-					
-			}
-
-			PointCloud->min = glm::vec3(newMinX, newMinY, newMinZ);
-			PointCloud->max = glm::vec3(newMaxX, newMaxY, newMaxZ);
-
-			LOG.Add("newMinX: " + std::to_string(newMinX), "File_Load_Log");
-			LOG.Add("newMaxX: " + std::to_string(newMaxX), "File_Load_Log");
-			LOG.Add("newMinY: " + std::to_string(newMinY), "File_Load_Log");
-			LOG.Add("newMaxY: " + std::to_string(newMaxY), "File_Load_Log");
-			LOG.Add("newMinZ: " + std::to_string(newMinZ), "File_Load_Log");
-			LOG.Add("newMaxZ: " + std::to_string(newMaxZ), "File_Load_Log");
-
-			PointCloud->initialXShift = header->min_x - newMinX;
-			if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
-			{
-				PointCloud->initialZShift = -PointCloud->adjustment.z;
-			}
-
-			LOG.Add("PointCloud->initialXShift: " + std::to_string(PointCloud->initialXShift), "File_Load_Log");
-			LOG.Add("PointCloud->initialZShift: " + std::to_string(PointCloud->initialZShift), "File_Load_Log");
-
-			if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
-				std::swap(PointCloud->adjustment.y, PointCloud->adjustment.z);
-
-			// close the reader
-			if (laszip_close_reader(laszip_reader))
-			{
-				LOG.Add("closing laszip reader failed", "DLL_ERRORS");
-			}
-
-			// destroy the reader
-			if (laszip_destroy(laszip_reader))
-			{
-				LOG.Add("destroying laszip reader failed", "DLL_ERRORS");
-			}
-		}
-
-//#ifdef USE_QUADS_NOT_POINTS
-//			PointCloud->vertexInfo[0].position[0] = 10.0f;
-//			PointCloud->vertexInfo[0].position[1] = 10.0f;
-//			PointCloud->vertexInfo[0].position[2] = 0.0f;
-//
-//			PointCloud->vertexInfo[1].position[0] = -10.0f;
-//			PointCloud->vertexInfo[1].position[1] = 10.0f;
-//			PointCloud->vertexInfo[1].position[2] = 0.0f;
-//
-//			PointCloud->vertexInfo[2].position[0] = -10.0f;
-//			PointCloud->vertexInfo[2].position[1] = -10.0f;
-//			PointCloud->vertexInfo[2].position[2] = 0.0f;
-//
-//			PointCloud->vertexInfo[3].position[0] = 10.0f;
-//			PointCloud->vertexInfo[3].position[1] = -10.0f;
-//			PointCloud->vertexInfo[3].position[2] = 0.0f;
-//
-//			PointCloud->vertexInfo[4].position[0] = -10.0f;
-//			PointCloud->vertexInfo[4].position[1] = -10.0f;
-//			PointCloud->vertexInfo[4].position[2] = 0.0f;
-//
-//			PointCloud->vertexInfo[5].position[0] = 10.0f;
-//			PointCloud->vertexInfo[5].position[1] = 10.0f;
-//			PointCloud->vertexInfo[5].position[2] = 0.0f;
-//#endif
-
-		// saving original data
-		PointCloud->originalData = PointCloud->vertexInfo;
-		//PointCloud->originalData.resize(PointCloud->getPointCount());
-		//for (size_t i = 0; i < PointCloud->originalData.size(); i++)
-		//{
-		//	PointCloud->originalData[i] = PointCloud->vertexInfo[i];
-		//	/*PointCloud->originalData[i].color[1] = PointCloud->vertexInfo[i].color[1];
-		//	PointCloud->originalData[i].color[2] = PointCloud->vertexInfo[i].color[2];
-
-		//	PointCloud->originalData[i].color[0] = PointCloud->vertexInfo[i].color[0];
-		//	PointCloud->originalData[i].color[1] = PointCloud->vertexInfo[i].color[1];
-		//	PointCloud->originalData[i].color[2] = PointCloud->vertexInfo[i].color[2];*/
-		//}
-
-		LOG.Add("before initializeOctree", "OctreeEvents");
-		LOG.Add("rangeXYZ: " + vec3ToString(glm::vec3(rangeX, rangeY, rangeZ)), "OctreeEvents");
-		PointCloud->initializeOctree(rangeX, rangeY, rangeZ, glm::vec3(newMinX + rangeX / 2.0f, newMinY + rangeY / 2.0f, newMinZ + rangeZ / 2.0f));
-		LOG.Add("after initializeOctree", "OctreeEvents");
-			
-		LOG.Add("Points inserted: " + std::to_string(PointCloud->getSearchOctree()->getPointsInserted()), "OctreeEvents");
-		LOG.Add("Total nodes created: " + std::to_string(PointCloud->getSearchOctree()->getDebugNodeCount()), "OctreeEvents");
-		LOG.Add("Rootnode AABB size: " + std::to_string(PointCloud->getSearchOctree()->root->nodeAABB.size), "OctreeEvents");
-		LOG.Add("Rootnode AABB min: " + vec3ToString(PointCloud->getSearchOctree()->root->nodeAABB.min), "OctreeEvents");
-		LOG.Add("Rootnode AABB max: " + vec3ToString(PointCloud->getSearchOctree()->root->nodeAABB.max), "OctreeEvents");
-		LOG.Add("Max depth: " + std::to_string(PointCloud->getSearchOctree()->getDebugMaxNodeDepth()), "OctreeEvents");
-
-		PointCloud->calculateApproximateGroundLevel();
-		LOG.Add("ApproximateGroundLevel: " + std::to_string(PointCloud->getApproximateGroundLevel()), "OctreeEvents");
-
-		PointCloud->loadedFrom = fileInfo;
-		if (PointCloud->loadedFrom != nullptr)
-			PointCloud->loadedFrom->resultingPointCloud = PointCloud;
-			
-		PointCloud->wasFullyLoaded = true;
-		LOG.Add("PointCloud->wasFullyLoaded = true;", "File_Load_Log");
+		LOG.Add("PointCloud = nullptr", "File_Load_Log");
+		return;
 	}
-	else
+
+	PointCloud->EPSG = 0;
+	PointCloud->Metrics.Min = glm::dvec3(DBL_MAX);
+	PointCloud->Metrics.Max = glm::dvec3(-DBL_MAX);
+
+	if (Path.empty() || Path.size() <= 4 || !std::filesystem::exists(Path))
 	{
 		if (Path.size() <= 4)
 			LOG.Add("FilePath lenght was less then 4", "ERRORS");
 
 		if (!std::filesystem::exists(Path))
 			LOG.Add("File can't be found in \"" + Path + "\"", "ERRORS");
+
+		return;
 	}
+
+	LOG.Add("Coping file from original location: " + Path, "File_Load_Log");
+	LOG.Add("To new location: " + Info->currentProjectPath + "/Resources/CCOM/PointCloud/Data/", "File_Load_Log");
+		
+	std::filesystem::path newLocation = Info->currentProjectPath + "/Resources/CCOM/PointCloud/Data/" + std::filesystem::path(Path).filename().string();
+	if (!std::filesystem::exists(newLocation) && std::filesystem::exists(Info->currentProjectPath + "/Resources/CCOM/PointCloud/Data/"))
+	{
+		std::filesystem::copy(Path, Info->currentProjectPath + "/Resources/CCOM/PointCloud/Data/" + std::filesystem::path(Path).filename().string());
+	}
+	else
+	{
+		newLocation = Path;
+	}
+
+	PointCloud->filePath = newLocation.string();
+
+	// If file is in our own format.
+	if (Path[Path.size() - 4] == '.' &&
+		Path[Path.size() - 3] == 'c' &&
+		Path[Path.size() - 2] == 'p' &&
+		Path[Path.size() - 1] == 'c')
+	{
+		LoadOwnFormat(PointCloud, Path);
+	}
+	else if ((Path[Path.size() - 4] == '.' &&
+			  Path[Path.size() - 3] == 'n' &&
+			  Path[Path.size() - 2] == 'p' &&
+			  Path[Path.size() - 1] == 'y')
+			  
+			  ||
+
+			 (Path[Path.size() - 4] == '.' &&
+			  Path[Path.size() - 3] == 'n' &&
+			  Path[Path.size() - 2] == 'p' &&
+			  Path[Path.size() - 1] == 'z'))
+	{
+		LoadNPY(PointCloud, Path);
+	}
+	else
+	{
+		LoadLazLas(PointCloud, Path);
+	}
+
+	// Saving original data.
+	PointCloud->originalData = PointCloud->vertexInfo;
+
+	LOG.Add("EPSG: " + PointCloud->EPSG, "EPSG");
+
+	LOG.Add("PointCloud->Metrics.InitialXShift: " + std::to_string(PointCloud->Metrics.InitialXShift), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.InitialZShift: " + std::to_string(PointCloud->Metrics.InitialZShift), "File_Load_Log");
+
+	LOG.Add("PointCloud->Metrics.Min.x: " + std::to_string(PointCloud->Metrics.Min.x), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.Max.x: " + std::to_string(PointCloud->Metrics.Max.x), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.Min.y: " + std::to_string(PointCloud->Metrics.Min.y), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.Max.y: " + std::to_string(PointCloud->Metrics.Max.y), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.Min.z: " + std::to_string(PointCloud->Metrics.Min.z), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.Max.z: " + std::to_string(PointCloud->Metrics.Max.z), "File_Load_Log");
+
+	LOG.Add("PointCloud->Metrics.RawMin.x: " + std::to_string(PointCloud->Metrics.RawMin.x), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.RawMax.x: " + std::to_string(PointCloud->Metrics.RawMax.x), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.RawMin.y: " + std::to_string(PointCloud->Metrics.RawMin.y), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.RawMax.y: " + std::to_string(PointCloud->Metrics.RawMax.y), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.RawMin.z: " + std::to_string(PointCloud->Metrics.RawMin.z), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.RawMax.z: " + std::to_string(PointCloud->Metrics.RawMax.z), "File_Load_Log");
+
+	LOG.Add("PointCloud->Metrics.Range.x: " + std::to_string(PointCloud->Metrics.Range.x), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.Range.y: " + std::to_string(PointCloud->Metrics.Range.y), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.Range.z: " + std::to_string(PointCloud->Metrics.Range.z), "File_Load_Log");
+
+	LOG.Add("PointCloud->Metrics.Adjustment.x: " + std::to_string(PointCloud->Metrics.Adjustment.x), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.Adjustment.y: " + std::to_string(PointCloud->Metrics.Adjustment.y), "File_Load_Log");
+	LOG.Add("PointCloud->Metrics.Adjustment.z: " + std::to_string(PointCloud->Metrics.Adjustment.z), "File_Load_Log");
+
+	LOG.Add("before initializeOctree", "OctreeEvents");
+	LOG.Add("PointCloud->Metrics.Range.XYZ: " + vec3ToString(glm::vec3(PointCloud->Metrics.Range.x, PointCloud->Metrics.Range.y, PointCloud->Metrics.Range.z)), "OctreeEvents");
+	PointCloud->initializeOctree(PointCloud->Metrics.Range.x, PointCloud->Metrics.Range.y, PointCloud->Metrics.Range.z, glm::vec3(PointCloud->Metrics.Min.x + PointCloud->Metrics.Range.x / 2.0f, PointCloud->Metrics.Min.y + PointCloud->Metrics.Range.y / 2.0f, PointCloud->Metrics.Min.z + PointCloud->Metrics.Range.z / 2.0f));
+	LOG.Add("after initializeOctree", "OctreeEvents");
+		
+	LOG.Add("Points inserted: " + std::to_string(PointCloud->getSearchOctree()->getPointsInserted()), "OctreeEvents");
+	LOG.Add("Total nodes created: " + std::to_string(PointCloud->getSearchOctree()->getDebugNodeCount()), "OctreeEvents");
+	LOG.Add("Rootnode AABB size: " + std::to_string(PointCloud->getSearchOctree()->root->nodeAABB.size), "OctreeEvents");
+	LOG.Add("Rootnode AABB min: " + vec3ToString(PointCloud->getSearchOctree()->root->nodeAABB.min), "OctreeEvents");
+	LOG.Add("Rootnode AABB max: " + vec3ToString(PointCloud->getSearchOctree()->root->nodeAABB.max), "OctreeEvents");
+	LOG.Add("Max depth: " + std::to_string(PointCloud->getSearchOctree()->getDebugMaxNodeDepth()), "OctreeEvents");
+
+	PointCloud->calculateApproximateGroundLevel();
+	LOG.Add("ApproximateGroundLevel: " + std::to_string(PointCloud->getApproximateGroundLevel()), "OctreeEvents");
+
+	PointCloud->wasFullyLoaded = true;
+
+
+
+	double* adjustment = new double[13];
+	adjustment[0] = PointCloud->Metrics.Adjustment.x;
+	adjustment[1] = PointCloud->Metrics.Adjustment.y;
+	adjustment[2] = PointCloud->Metrics.Adjustment.z;
+
+	adjustment[3] = PointCloud->Metrics.InitialXShift;
+	adjustment[4] = PointCloud->Metrics.InitialZShift;
+
+	adjustment[5] = PointCloud->Metrics.RawMin.x;
+	adjustment[6] = PointCloud->Metrics.RawMin.y;
+	adjustment[7] = PointCloud->Metrics.RawMin.z;
+
+	adjustment[8] = PointCloud->Metrics.RawMax.x;
+	adjustment[9] = PointCloud->Metrics.RawMax.y;
+	adjustment[10] = PointCloud->Metrics.RawMax.z;
+
+	adjustment[11] = PointCloud->EPSG;
+	adjustment[12] = PointCloud->getApproximateGroundLevel();
+
+	std::string Result;
+	for (size_t i = 0; i < 13; i++)
+	{
+		Result += std::to_string(i) + ": ";
+		Result += std::to_string(adjustment[i]);
+		Result += '\n';
+	}
+
+	PointCloud->wasFullyLoaded = true;
 }
 
 LoadManager::LoadManager() {}
@@ -1158,6 +466,468 @@ void LoadManager::loadPointCloudAsync(std::string path, std::string projectPath,
 bool LoadManager::isLoadingDone()
 {
 	return !THREAD_POOL.IsAnyThreadHaveActiveJob();
+}
+
+void LoadManager::LoadNPY(pointCloud* PointCloud, std::string Path)
+{
+	PointCloud->NumPy = new NumPyInfo();
+	PointCloud->NumPy->WKT = GetWKT(Path);
+	PointCloud->NumPy->WKT.erase(PointCloud->NumPy->WKT.begin(),
+		PointCloud->NumPy->WKT.begin() + PointCloud->NumPy->WKT.find("PROJCS"));
+
+	PointCloud->NumPy->AllEPSG = GetEPSG(PointCloud->NumPy->WKT);
+	PointCloud->NumPy->MinMax = GetMinMax(Path);
+
+	PointCloud->EPSG = atoi(PointCloud->NumPy->AllEPSG.back().c_str());
+
+	cnpy::NpyArray DataVar = cnpy::npz_load(Path, "data");
+
+	auto FinalData = DataVar.data_holder.get();
+	size_t Count = DataVar.num_vals;
+	size_t SizePerValue = FinalData->size() / Count;
+
+	double UncertaintyMin = DBL_MAX;
+	double UncertaintyMax = -DBL_MAX;
+
+	int Iteration = 0;
+	char* word = new char[8];
+	for (size_t i = 0; i < FinalData->size() / 8; i++)
+	{
+		for (size_t j = 0; j < 8; j++)
+		{
+			word[j] = FinalData->operator[](i * 8 + j);
+		}
+
+		double tempValue = *reinterpret_cast<double*>(word);
+
+		if (Iteration == 0)
+		{
+			PointCloud->NumPy->LoadedRawData.resize(PointCloud->NumPy->LoadedRawData.size() + 1);
+			PointCloud->NumPy->LoadedRawData.back().X = tempValue;
+
+			PointCloud->vertexInfo.resize(PointCloud->vertexInfo.size() + 1);
+			PointCloud->vertexInfo.back().position.x = tempValue;
+
+			if (PointCloud->Metrics.Min.x > tempValue)
+				PointCloud->Metrics.Min.x = tempValue;
+
+			if (PointCloud->Metrics.Max.x < tempValue)
+				PointCloud->Metrics.Max.x = tempValue;
+		}
+		// Z and Y is flipped.
+		else if (Iteration == 1)
+		{
+			PointCloud->NumPy->LoadedRawData.back().Y = tempValue;
+			PointCloud->vertexInfo.back().position.z = tempValue;
+
+			if (PointCloud->Metrics.Min.z > tempValue)
+				PointCloud->Metrics.Min.z = tempValue;
+
+			if (PointCloud->Metrics.Max.z < tempValue)
+				PointCloud->Metrics.Max.z = tempValue;
+		}
+		else if (Iteration == 2)
+		{
+			PointCloud->NumPy->LoadedRawData.back().Z = tempValue;
+			PointCloud->vertexInfo.back().position.y = tempValue;
+
+			if (PointCloud->Metrics.Min.y > tempValue)
+				PointCloud->Metrics.Min.y = tempValue;
+
+			if (PointCloud->Metrics.Max.y < tempValue)
+				PointCloud->Metrics.Max.y = tempValue;
+
+		}
+		else if (Iteration == 3)
+		{
+			PointCloud->NumPy->LoadedRawData.back().Uncertainty = tempValue;
+
+			if (UncertaintyMin > tempValue)
+				UncertaintyMin = tempValue;
+
+			if (UncertaintyMax < tempValue)
+				UncertaintyMax = tempValue;
+		}
+
+		Iteration++;
+		if (Iteration > 3)
+			Iteration = 0;
+	}
+
+	PointCloud->Metrics.Range.x = PointCloud->Metrics.Max.x - PointCloud->Metrics.Min.x;
+	PointCloud->Metrics.Range.y = PointCloud->Metrics.Max.y - PointCloud->Metrics.Min.y;
+	PointCloud->Metrics.Range.z = PointCloud->Metrics.Max.z - PointCloud->Metrics.Min.z;
+
+	PointCloud->Metrics.Adjustment.x = PointCloud->Metrics.Min.x;
+	PointCloud->Metrics.Adjustment.y = PointCloud->Metrics.Min.y;
+	PointCloud->Metrics.Adjustment.z = PointCloud->Metrics.Min.z;
+
+	PointCloud->Metrics.Min = glm::dvec3(DBL_MAX);
+	PointCloud->Metrics.Max = glm::dvec3(-DBL_MAX);
+
+	double UncertaintyRange = UncertaintyMax - UncertaintyMin;
+	glm::vec3 CertainPointsColor = glm::vec3(1.0f);
+	glm::vec3 UnCertainPointsColor = glm::vec3(1.0f, 0.0f, 0.0f);
+
+	for (int i = 0; i < PointCloud->vertexInfo.size(); i++)
+	{
+		PointCloud->vertexInfo[i].position.x = PointCloud->vertexInfo[i].position.x - PointCloud->Metrics.Adjustment.x;
+		PointCloud->vertexInfo[i].position.y = PointCloud->vertexInfo[i].position.y - PointCloud->Metrics.Adjustment.y;
+		PointCloud->vertexInfo[i].position.z = PointCloud->vertexInfo[i].position.z - PointCloud->Metrics.Adjustment.z;
+
+		PointCloud->Metrics.Min.x = glm::min(float(PointCloud->Metrics.Min.x), PointCloud->vertexInfo[i].position.x);
+		PointCloud->Metrics.Min.y = glm::min(float(PointCloud->Metrics.Min.y), PointCloud->vertexInfo[i].position.y);
+		PointCloud->Metrics.Min.z = glm::min(float(PointCloud->Metrics.Min.z), PointCloud->vertexInfo[i].position.z);
+
+		PointCloud->Metrics.Max.x = glm::min(float(PointCloud->Metrics.Max.x), PointCloud->vertexInfo[i].position.x);
+		PointCloud->Metrics.Max.y = glm::min(float(PointCloud->Metrics.Max.y), PointCloud->vertexInfo[i].position.y);
+		PointCloud->Metrics.Max.z = glm::min(float(PointCloud->Metrics.Max.z), PointCloud->vertexInfo[i].position.z);
+
+		double HowCertainPointIs = (UncertaintyMax - PointCloud->NumPy->LoadedRawData[i].Uncertainty) / UncertaintyRange;
+		glm::vec3 ColorMixFactor = glm::vec3(HowCertainPointIs);
+
+		glm::vec3 Color = CertainPointsColor * ColorMixFactor + UnCertainPointsColor * (glm::vec3(1.0f) - ColorMixFactor);
+
+		PointCloud->vertexInfo[i].color[0] = unsigned char(Color.x * 255);
+		PointCloud->vertexInfo[i].color[1] = unsigned char(Color.y * 255);
+		PointCloud->vertexInfo[i].color[2] = unsigned char(Color.z * 255);
+	}
+}
+
+void LoadManager::LoadOwnFormat(pointCloud* PointCloud, std::string Path)
+{
+	std::fstream file;
+	file.open(Path, std::ios::in | std::ios::binary);
+
+	char* buffer = new char[sizeof(float)];
+
+	// Read how many points does the file have.
+	file.read(buffer, sizeof(int));
+	int pointCount = *(int*)buffer;
+
+	// Read initialXShift and initialZShift.
+	file.read(buffer, sizeof(double));
+	PointCloud->Metrics.InitialXShift = *(double*)buffer;
+	file.read(buffer, sizeof(double));
+	PointCloud->Metrics.InitialZShift = *(double*)buffer;
+
+	// Read adjustment.
+	file.read(buffer, sizeof(float));
+	PointCloud->Metrics.Adjustment[0] = *(float*)buffer;
+	file.read(buffer, sizeof(float));
+	PointCloud->Metrics.Adjustment[1] = *(float*)buffer;
+	file.read(buffer, sizeof(float));
+	PointCloud->Metrics.Adjustment[2] = *(float*)buffer;
+
+	// Read min and max.
+	file.read(buffer, sizeof(float));
+	PointCloud->Metrics.Min[0] = *(float*)buffer;
+	file.read(buffer, sizeof(float));
+	PointCloud->Metrics.Min[1] = *(float*)buffer;
+	file.read(buffer, sizeof(float));
+	PointCloud->Metrics.Min[2] = *(float*)buffer;
+
+	file.read(buffer, sizeof(float));
+	PointCloud->Metrics.Max[0] = *(float*)buffer;
+	file.read(buffer, sizeof(float));
+	PointCloud->Metrics.Max[1] = *(float*)buffer;
+	file.read(buffer, sizeof(float));
+	PointCloud->Metrics.Max[2] = *(float*)buffer;
+
+	PointCloud->Metrics.Range.x = PointCloud->Metrics.Max.x - PointCloud->Metrics.Min.x;
+	PointCloud->Metrics.Range.y = PointCloud->Metrics.Max.y - PointCloud->Metrics.Min.y;
+	PointCloud->Metrics.Range.z = PointCloud->Metrics.Max.z - PointCloud->Metrics.Min.z;
+
+	LOG.Add("contains " + std::to_string(pointCount) + " points", "File_Load_Log");
+
+	PointCloud->vertexInfo.resize(pointCount);
+
+	char* rawPointData = new char[pointCount * sizeof(MeshVertex)];
+	file.read(rawPointData, pointCount * sizeof(MeshVertex));
+
+	MeshVertex* temp = (MeshVertex*)rawPointData;
+	for (size_t i = 0; i < pointCount; i++)
+	{
+		PointCloud->vertexInfo[i].position[0] = (temp + i)->position.x;
+		PointCloud->vertexInfo[i].position[1] = (temp + i)->position.y;
+		PointCloud->vertexInfo[i].position[2] = (temp + i)->position.z;
+		PointCloud->vertexInfo[i].color[0] = (temp + i)->color[0];
+		PointCloud->vertexInfo[i].color[1] = (temp + i)->color[1];
+		PointCloud->vertexInfo[i].color[2] = (temp + i)->color[2];
+	}
+}
+
+void LoadManager::LoadLazLas(pointCloud* PointCloud, std::string Path)
+{
+	// create the reader
+	laszip_POINTER laszip_reader;
+
+	laszip_I32 error = laszip_create(&laszip_reader);
+	if (error)
+	{
+		LOG.Add("Creating laszip reader failed", "DLL_ERRORS");
+		LOG.Add("Error: " + std::to_string(error), "DLL_ERRORS");
+		return;
+	}
+
+	// open the reader
+	laszip_BOOL is_compressed = 0;
+	if (laszip_open_reader(laszip_reader, Path.c_str(), &is_compressed))
+	{
+		LOG.Add("opening laszip reader for " + Path + " failed", "DLL_ERRORS");
+		return;
+	}
+
+	// get a pointer to the header of the reader that was just populated
+	laszip_header* header;
+	if (laszip_get_header_pointer(laszip_reader, &header))
+	{
+		LOG.Add("getting header pointer from laszip reader failed", "DLL_ERRORS");
+		return;
+	}
+
+	LAZFileInfo* FileInfo = nullptr;
+	FileInfo = new LAZFileInfo();
+	copyLAZFileHeader(&FileInfo->header, header);
+	FileInfo->compressed = is_compressed;
+
+	LOG.Add("Compressed: " + std::string(is_compressed ? "true" : "false"), "File_Load_Log");
+	LOG.Add("Signature: " + std::string(header->generating_software), "File_Load_Log");
+	LOG.Add("Points count: " + std::to_string(header->number_of_point_records), "File_Load_Log");
+	LOG.Add("X Min: " + std::to_string(header->min_x), "File_Load_Log");
+	LOG.Add("X Max: " + std::to_string(header->max_x), "File_Load_Log");
+	LOG.Add("Y Min: " + std::to_string(header->min_y), "File_Load_Log");
+	LOG.Add("Y Max: " + std::to_string(header->max_y), "File_Load_Log");
+	LOG.Add("Z Min: " + std::to_string(header->min_z), "File_Load_Log");
+	LOG.Add("Z Max: " + std::to_string(header->max_z), "File_Load_Log");
+
+	// how many points does the file have
+	laszip_U64 npoints = (header->number_of_point_records ? header->number_of_point_records : header->extended_number_of_point_records);
+
+	LOG.Add("contains " + std::to_string(npoints) + " points", "File_Load_Log");
+
+	PointCloud->vertexInfo.resize(npoints);
+	std::vector<glm::dvec3> DoublePoints;
+	DoublePoints.resize(npoints);
+	PointCloud->vertexIntensity.resize(npoints);
+
+	for (size_t i = 0; i < header->number_of_variable_length_records; i++)
+	{
+		if (header->vlrs[i].record_length_after_header)
+		{
+			std::string text = reinterpret_cast<char*>(header->vlrs[i].data);
+
+			size_t position = text.find("NAD_1983_2011_UTM_Zone_");
+			size_t position1 = text.find("UTM zone ");
+
+			if (position != std::string::npos)
+			{
+				PointCloud->spatialInfo = text;
+				LOG.Add("spatialInfo: " + PointCloud->spatialInfo, "File_Load_Log");
+				PointCloud->UTMZone = text.substr(position + strlen("NAD_1983_2011_UTM_Zone_"), 3);
+				LOG.Add("UTMZone: " + PointCloud->UTMZone, "File_Load_Log");
+				break;
+			}
+			else if (position1 != std::string::npos)
+			{
+				PointCloud->spatialInfo = text;
+				LOG.Add("spatialInfo: " + PointCloud->spatialInfo, "File_Load_Log");
+				PointCloud->UTMZone = text.substr(position + strlen("UTM zone "), 3);
+				LOG.Add("UTMZone: " + PointCloud->UTMZone, "File_Load_Log");
+				break;
+			}
+		}
+	}
+
+	class LASvlr_geo_keys
+	{
+	public:
+		unsigned short key_directory_version;
+		unsigned short key_revision;
+		unsigned short minor_revision;
+		unsigned short number_of_keys;
+	};
+
+	struct GeoProjectionGeoKeys
+	{
+		unsigned short key_id;
+		unsigned short tiff_tag_location;
+		unsigned short count;
+		unsigned short value_offset;
+	};
+
+	for (size_t i = 0; i < header->number_of_variable_length_records; i++)
+	{
+		if (header->vlrs[i].record_id == 34735) // GeoKeyDirectoryTag
+		{
+			LASvlr_geo_keys* read = new LASvlr_geo_keys[1];
+			memcpy_s(read, sizeof(unsigned short) * 4, header->vlrs[i].data, sizeof(unsigned short) * 4);
+
+			GeoProjectionGeoKeys* readKeys = new GeoProjectionGeoKeys[read->number_of_keys];
+			memcpy_s(readKeys, read->number_of_keys * sizeof(GeoProjectionGeoKeys),
+				header->vlrs[i].data + sizeof(unsigned short) * 4, read->number_of_keys * sizeof(unsigned short) * 4);
+
+			for (int j = 0; j < read->number_of_keys; j++)
+			{
+				if (readKeys[j].key_id != 3072)
+					continue;
+
+				PointCloud->EPSG = readKeys[j].value_offset;
+			}
+		}
+	}
+
+	// get a pointer to the points that will be read
+	laszip_point* point;
+	if (laszip_get_point_pointer(laszip_reader, &point))
+	{
+		LOG.Add("getting point pointer from laszip reader failed", "DLL_ERRORS");
+		return;
+	}
+
+	LOG.Add("header->x_scale_factor : " + std::to_string(header->x_scale_factor), "File_Load_Log");
+	LOG.Add("header->z_scale_factor : " + std::to_string(header->z_scale_factor), "File_Load_Log");
+	LOG.Add("header->y_scale_factor : " + std::to_string(header->y_scale_factor), "File_Load_Log");
+
+	// read the points
+	laszip_U64 p_count = 0;
+	std::vector<MeshVertex> points;
+	float maxIntensity = -FLT_MAX;
+	while (p_count < npoints)
+	{
+		// read a point
+		if (laszip_read_point(laszip_reader))
+		{
+			LOG.Add("reading point " + std::to_string(p_count) + " failed", "DLL_ERRORS");
+			return;
+		}
+
+		FileInfo->LAZpoints.push_back(laszip_point(*point));
+
+		// point->X -> lonX, point->Y -> latY, point->Z -> depth
+		double readX = point->X;
+		double readY = point->Z;
+		double readZ = point->Y;
+
+		DoublePoints[p_count].x = readX * header->x_scale_factor;
+		DoublePoints[p_count].y = readY * header->z_scale_factor;
+		DoublePoints[p_count].z = readZ * header->y_scale_factor;
+
+		PointCloud->vertexInfo[p_count].color[0] = unsigned char(point->rgb[0] / float(1 << 16) * 255);
+		PointCloud->vertexInfo[p_count].color[1] = unsigned char(point->rgb[1] / float(1 << 16) * 255);
+		PointCloud->vertexInfo[p_count].color[2] = unsigned char(point->rgb[2] / float(1 << 16) * 255);
+
+		PointCloud->vertexIntensity[p_count] = point->intensity;
+		maxIntensity = std::max(maxIntensity, float(point->intensity));
+
+		PointCloud->Metrics.RawMin.x = std::min(PointCloud->Metrics.RawMin.x, readX);
+		PointCloud->Metrics.RawMin.y = std::min(PointCloud->Metrics.RawMin.y, readY);
+		PointCloud->Metrics.RawMin.z = std::min(PointCloud->Metrics.RawMin.z, readZ);
+
+		PointCloud->Metrics.RawMax.x = std::max(PointCloud->Metrics.RawMax.x, readX);
+		PointCloud->Metrics.RawMax.y = std::max(PointCloud->Metrics.RawMax.y, readY);
+		PointCloud->Metrics.RawMax.z = std::max(PointCloud->Metrics.RawMax.z, readZ);
+
+		PointCloud->Metrics.Min.x = std::min(PointCloud->Metrics.Min.x, DoublePoints[p_count].x);
+		PointCloud->Metrics.Min.y = std::min(PointCloud->Metrics.Min.y, DoublePoints[p_count].y);
+		PointCloud->Metrics.Min.z = std::min(PointCloud->Metrics.Min.z, DoublePoints[p_count].z);
+
+		PointCloud->Metrics.Max.x = std::max(PointCloud->Metrics.Max.x, DoublePoints[p_count].x);
+		PointCloud->Metrics.Max.y = std::max(PointCloud->Metrics.Max.y, DoublePoints[p_count].y);
+		PointCloud->Metrics.Max.z = std::max(PointCloud->Metrics.Max.z, DoublePoints[p_count].z);
+
+		p_count++;
+	}
+
+	if (header->point_data_format == 1)
+	{
+		for (size_t i = 0; i < p_count; i++)
+		{
+			PointCloud->vertexInfo[i].color[0] = unsigned char(PointCloud->vertexIntensity[i] / maxIntensity * 255);
+			PointCloud->vertexInfo[i].color[1] = unsigned char(PointCloud->vertexIntensity[i] / maxIntensity * 255);
+			PointCloud->vertexInfo[i].color[2] = unsigned char(PointCloud->vertexIntensity[i] / maxIntensity * 255);
+		}
+	}
+
+	PointCloud->Metrics.InitialZShift = PointCloud->Metrics.Max.z < PointCloud->Metrics.Min.z ? PointCloud->Metrics.Max.z : PointCloud->Metrics.Min.z;
+	PointCloud->Metrics.InitialZShift = header->min_y - PointCloud->Metrics.InitialZShift;
+
+	if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
+	{
+		LOG.Add("header does not contain offset", "File_Load_Log");
+
+		PointCloud->Metrics.Range.x = PointCloud->Metrics.Max.x - PointCloud->Metrics.Min.x;
+		PointCloud->Metrics.Range.y = PointCloud->Metrics.Max.y - PointCloud->Metrics.Min.y;
+		PointCloud->Metrics.Range.z = PointCloud->Metrics.Max.z - PointCloud->Metrics.Min.z;
+
+		PointCloud->Metrics.Adjustment.x = -PointCloud->Metrics.Min.x;
+		PointCloud->Metrics.Adjustment.y = -PointCloud->Metrics.Min.y;
+		PointCloud->Metrics.Adjustment.z = -PointCloud->Metrics.Min.z;
+	}
+	else
+	{
+		LOG.Add("header contain offset", "File_Load_Log");
+		LOG.Add("header->x_offset : " + std::to_string(header->x_offset), "File_Load_Log");
+		LOG.Add("header->y_offset : " + std::to_string(header->y_offset), "File_Load_Log");
+		LOG.Add("header->z_offset : " + std::to_string(header->z_offset), "File_Load_Log");
+
+		PointCloud->Metrics.Range.x = PointCloud->Metrics.Max.x - PointCloud->Metrics.Min.x;
+		PointCloud->Metrics.Range.y = PointCloud->Metrics.Max.y - PointCloud->Metrics.Min.y;
+		PointCloud->Metrics.Range.z = PointCloud->Metrics.Max.z - PointCloud->Metrics.Min.z;
+
+		PointCloud->Metrics.Adjustment.x = -header->x_offset;
+		PointCloud->Metrics.Adjustment.y = -header->y_offset;
+		PointCloud->Metrics.Adjustment.z = -header->z_offset;
+	}
+
+	for (int i = 0; i < npoints; i++)
+	{
+		if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
+		{
+			DoublePoints[i].x = DoublePoints[i].x + PointCloud->Metrics.Adjustment.x;
+			DoublePoints[i].y = DoublePoints[i].y + PointCloud->Metrics.Adjustment.y;
+			DoublePoints[i].z = DoublePoints[i].z + PointCloud->Metrics.Adjustment.z;
+		}
+		else
+		{
+			DoublePoints[i].x = DoublePoints[i].x + PointCloud->Metrics.Adjustment.x * header->x_scale_factor;
+			DoublePoints[i].y = DoublePoints[i].y + PointCloud->Metrics.Adjustment.y * header->y_scale_factor;
+			DoublePoints[i].z = DoublePoints[i].z + PointCloud->Metrics.Adjustment.z * header->z_scale_factor;
+		}
+
+		PointCloud->Metrics.Min.x = std::min(PointCloud->Metrics.Min.x, DoublePoints[i].x);
+		PointCloud->Metrics.Min.y = std::min(PointCloud->Metrics.Min.y, DoublePoints[i].y);
+		PointCloud->Metrics.Min.z = std::min(PointCloud->Metrics.Min.z, DoublePoints[i].z);
+
+		PointCloud->Metrics.Max.x = std::max(PointCloud->Metrics.Max.x, DoublePoints[i].x);
+		PointCloud->Metrics.Max.y = std::max(PointCloud->Metrics.Max.y, DoublePoints[i].y);
+		PointCloud->Metrics.Max.z = std::max(PointCloud->Metrics.Max.z, DoublePoints[i].z);
+
+		PointCloud->vertexInfo[i].position[0] = float(DoublePoints[i].x);
+		PointCloud->vertexInfo[i].position[1] = float(DoublePoints[i].y);
+		PointCloud->vertexInfo[i].position[2] = float(DoublePoints[i].z);
+	}
+
+	PointCloud->Metrics.InitialXShift = header->min_x - PointCloud->Metrics.Min.x;
+	if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
+	{
+		PointCloud->Metrics.InitialZShift = -PointCloud->Metrics.Adjustment.z;
+	}
+
+	if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
+		std::swap(PointCloud->Metrics.Adjustment.y, PointCloud->Metrics.Adjustment.z);
+
+	// Close the reader.
+	if (laszip_close_reader(laszip_reader))
+		LOG.Add("closing laszip reader failed", "DLL_ERRORS");
+
+	// Destroy the reader.
+	if (laszip_destroy(laszip_reader))
+		LOG.Add("destroying laszip reader failed", "DLL_ERRORS");
+
+	PointCloud->loadedFrom = FileInfo;
+	if (PointCloud->loadedFrom != nullptr)
+		PointCloud->loadedFrom->resultingPointCloud = PointCloud;
 }
 
 SaveManager* SaveManager::Instance = nullptr;
@@ -1248,18 +1018,12 @@ void SaveManager::SaveFunc(void* InputData, void* OutputData)
 		}
 		else
 		{
-			/*pointCloud* PointCloud = getPointCloud(pointCloudID);
-			if (PointCloud == nullptr)
-				return;*/
-
-			//LOG.Add("flag 0", "writeTest");
 			laszip_POINTER laszip_writer;
 			if (laszip_create(&laszip_writer))
 			{
 				LOG.Add("creating laszip writer failed", "DLL_ERRORS");
 				return;
 			}
-			//LOG.Add("flag 1", "writeTest");
 
 			int pointsToWrite = 0;
 			for (size_t j = 0; j < PointCloud->getPointCount(); j++)
@@ -1269,14 +1033,12 @@ void SaveManager::SaveFunc(void* InputData, void* OutputData)
 					PointCloud->vertexInfo[j].position[2] != DELETED_POINTS_COORDINATE)
 					pointsToWrite++;
 			}
-			//LOG.Add("flag 2", "writeTest");
 
 			PointCloud->loadedFrom->header.number_of_point_records = pointsToWrite;
 			if (laszip_set_header(laszip_writer, &PointCloud->loadedFrom->header))
 			{
 				LOG.Add("setting header for laszip writer failed", "DLL_ERRORS");
 			}
-			//LOG.Add("flag 3", "writeTest");
 
 			std::string fileName = Path;
 			if (laszip_open_writer(laszip_writer, fileName.c_str(), true))
@@ -1292,10 +1054,8 @@ void SaveManager::SaveFunc(void* InputData, void* OutputData)
 				return;
 			}
 
-			//LOG.Add("flag 4", "writeTest");
 			for (size_t j = 0; j < PointCloud->getPointCount(); j++)
 			{
-				//LOG.Add("iteration of (size_t j = 0; j < pointClouds[pointCloudIndex]->getPointCount(); j++)", "TEST");
 				if (PointCloud->vertexInfo[j].position[0] != DELETED_POINTS_COORDINATE &&
 					PointCloud->vertexInfo[j].position[1] != DELETED_POINTS_COORDINATE &&
 					PointCloud->vertexInfo[j].position[2] != DELETED_POINTS_COORDINATE)

@@ -20,7 +20,10 @@ private:
 	};
 
 	static void LoadFunc(void* InputData, void* OutputData);
-	//void LoadNPY(InfoForLoading* Data);
+
+	static void LoadOwnFormat(pointCloud* PointCloud, std::string Path);
+	static void LoadNPY(pointCloud* PointCloud, std::string Path);
+	static void LoadLazLas(pointCloud* PointCloud, std::string Path);
 };
 
 class SaveManager

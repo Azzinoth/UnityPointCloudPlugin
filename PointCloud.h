@@ -124,18 +124,29 @@ public:
 	bool wasInitialized = false;
 	bool wasFullyLoaded = false;
 	LAZFileInfo* loadedFrom = nullptr;
-	glm::dvec3 RawMin;
-	glm::dvec3 RawMax;
-	glm::dvec3 min;
-	glm::dvec3 max;
-	glm::dvec3 adjustment;
+
+	struct Metrics
+	{
+		glm::dvec3 Range;
+
+		glm::dvec3 RawMin = glm::dvec3(DBL_MAX);
+		glm::dvec3 RawMax = glm::dvec3(-DBL_MAX);
+
+		glm::dvec3 Min = glm::dvec3(DBL_MAX);
+		glm::dvec3 Max = glm::dvec3(-DBL_MAX);
+
+		glm::dvec3 Adjustment;
+
+		double InitialXShift;
+		double InitialZShift;
+	};
+
+	Metrics Metrics;
+
 	std::string spatialInfo;
 	std::string UTMZone;
 
 	std::string filePath;
-
-	double initialXShift;
-	double initialZShift;
 
 	float lastDiscardDistance;
 	int lastMinNeighborsInRange;
