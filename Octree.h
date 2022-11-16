@@ -13,10 +13,11 @@
 
 #define DELETED_POINTS_COORDINATE -200000.0f
 
-struct MeshVertex
+struct VertexData
 {
     glm::vec3 position;
     byte color[4];
+    byte classification;
 };
 
 struct octreeSearchInfo
@@ -26,7 +27,7 @@ struct octreeSearchInfo
 
     int hadIndex = -1;
 
-    octreeSearchInfo(MeshVertex vertex, int index)
+    octreeSearchInfo(VertexData vertex, int index)
     {
         position = vertex.position;
 
@@ -144,7 +145,7 @@ public:
 
     void initialize(float worldSize, glm::vec3 worldCenter);
 
-    bool addObject(MeshVertex vertex, int index);
+    bool addObject(VertexData vertex, int index);
     void deleteObjects(glm::vec3& Center, float Radius);
     void searchForObjects(glm::vec3& Center, float Radius, std::vector<int>& foundObjects);
 

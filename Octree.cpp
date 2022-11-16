@@ -330,7 +330,7 @@ void octree::initialize(float worldSize, glm::vec3 worldCenter)
 #endif
 }
 
-bool octree::addObject(MeshVertex vertex, int index)
+bool octree::addObject(VertexData vertex, int index)
 {
     //#ifdef FULL_LOGGING
     //        debugLog::getInstance().addToLog("point to add: ", vertex.position, "OctreeEvents");

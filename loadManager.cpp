@@ -1,9 +1,8 @@
-#include "pch.h"
 #include "loadManager.h"
 
 LoadManager* LoadManager::Instance = nullptr;
 
-void copyLAZvlr(laszip_header* dest, laszip_vlr_struct source)
+void LoadManager::copyLAZvlr(laszip_header* dest, laszip_vlr_struct source)
 {
 	size_t i = 0;
 	if (dest->vlrs)
@@ -74,7 +73,7 @@ void copyLAZvlr(laszip_header* dest, laszip_vlr_struct source)
 	}
 }
 
-void copyLAZFileHeader(laszip_header* dest, laszip_header* source)
+void LoadManager::copyLAZFileHeader(laszip_header* dest, laszip_header* source)
 {
 	dest->file_source_ID = source->file_source_ID;
 	dest->global_encoding = source->global_encoding;
@@ -146,7 +145,7 @@ void copyLAZFileHeader(laszip_header* dest, laszip_header* source)
 	}
 }
 
-std::string GetWKT(std::string FileName, std::string VariableName = "wkt")
+std::string LoadManager::GetWKT(std::string FileName, std::string VariableName)
 {
 	FILE* fp = fopen(FileName.c_str(), "rb");
 
@@ -202,7 +201,7 @@ std::string GetWKT(std::string FileName, std::string VariableName = "wkt")
 	fclose(fp);
 }
 
-std::vector<std::string> GetEPSG(std::string TotalString)
+std::vector<std::string> LoadManager::GetEPSG(std::string TotalString)
 {
 	std::vector<std::string> result;
 	static std::string LookingFor = "AUTHORITY[\"EPSG\",\"";
@@ -235,7 +234,7 @@ std::vector<std::string> GetEPSG(std::string TotalString)
 	return result;
 }
 
-NumPyMinMax GetMinMax(std::string FileName, std::string VariableName = "minmax")
+NumPyMinMax LoadManager::GetMinMax(std::string FileName, std::string VariableName)
 {
 	cnpy::NpyArray MinMaxNpy = cnpy::npz_load(FileName, "minmax");
 	auto MinMaxNpyRawData = MinMaxNpy.data_holder.get();
@@ -374,7 +373,7 @@ void LoadManager::LoadFunc(void* InputData, void* OutputData)
 	// Saving original data.
 	PointCloud->originalData = PointCloud->vertexInfo;
 
-	LOG.Add("EPSG: " + PointCloud->EPSG, "EPSG");
+	LOG.Add("EPSG: " + std::to_string(PointCloud->EPSG), "EPSG");
 
 	LOG.Add("PointCloud->Metrics.InitialXShift: " + std::to_string(PointCloud->Metrics.InitialXShift), "File_Load_Log");
 	LOG.Add("PointCloud->Metrics.InitialZShift: " + std::to_string(PointCloud->Metrics.InitialZShift), "File_Load_Log");
@@ -418,34 +417,32 @@ void LoadManager::LoadFunc(void* InputData, void* OutputData)
 
 	PointCloud->wasFullyLoaded = true;
 
+	//double* adjustment = new double[13];
+	//adjustment[0] = PointCloud->Metrics.Adjustment.x;
+	//adjustment[1] = PointCloud->Metrics.Adjustment.y;
+	//adjustment[2] = PointCloud->Metrics.Adjustment.z;
 
+	//adjustment[3] = PointCloud->Metrics.InitialXShift;
+	//adjustment[4] = PointCloud->Metrics.InitialZShift;
 
-	double* adjustment = new double[13];
-	adjustment[0] = PointCloud->Metrics.Adjustment.x;
-	adjustment[1] = PointCloud->Metrics.Adjustment.y;
-	adjustment[2] = PointCloud->Metrics.Adjustment.z;
+	//adjustment[5] = PointCloud->Metrics.RawMin.x;
+	//adjustment[6] = PointCloud->Metrics.RawMin.y;
+	//adjustment[7] = PointCloud->Metrics.RawMin.z;
 
-	adjustment[3] = PointCloud->Metrics.InitialXShift;
-	adjustment[4] = PointCloud->Metrics.InitialZShift;
+	//adjustment[8] = PointCloud->Metrics.RawMax.x;
+	//adjustment[9] = PointCloud->Metrics.RawMax.y;
+	//adjustment[10] = PointCloud->Metrics.RawMax.z;
 
-	adjustment[5] = PointCloud->Metrics.RawMin.x;
-	adjustment[6] = PointCloud->Metrics.RawMin.y;
-	adjustment[7] = PointCloud->Metrics.RawMin.z;
+	//adjustment[11] = PointCloud->EPSG;
+	//adjustment[12] = PointCloud->getApproximateGroundLevel();
 
-	adjustment[8] = PointCloud->Metrics.RawMax.x;
-	adjustment[9] = PointCloud->Metrics.RawMax.y;
-	adjustment[10] = PointCloud->Metrics.RawMax.z;
-
-	adjustment[11] = PointCloud->EPSG;
-	adjustment[12] = PointCloud->getApproximateGroundLevel();
-
-	std::string Result;
-	for (size_t i = 0; i < 13; i++)
-	{
-		Result += std::to_string(i) + ": ";
-		Result += std::to_string(adjustment[i]);
-		Result += '\n';
-	}
+	//std::string Result;
+	//for (size_t i = 0; i < 13; i++)
+	//{
+	//	Result += std::to_string(i) + ": ";
+	//	Result += std::to_string(adjustment[i]);
+	//	Result += '\n';
+	//}
 
 	PointCloud->wasFullyLoaded = true;
 }
@@ -642,10 +639,10 @@ void LoadManager::LoadOwnFormat(pointCloud* PointCloud, std::string Path)
 
 	PointCloud->vertexInfo.resize(pointCount);
 
-	char* rawPointData = new char[pointCount * sizeof(MeshVertex)];
-	file.read(rawPointData, pointCount * sizeof(MeshVertex));
+	char* rawPointData = new char[pointCount * sizeof(VertexData)];
+	file.read(rawPointData, pointCount * sizeof(VertexData));
 
-	MeshVertex* temp = (MeshVertex*)rawPointData;
+	VertexData* temp = (VertexData*)rawPointData;
 	for (size_t i = 0; i < pointCount; i++)
 	{
 		PointCloud->vertexInfo[i].position[0] = (temp + i)->position.x;
@@ -693,17 +690,19 @@ void LoadManager::LoadLazLas(pointCloud* PointCloud, std::string Path)
 
 	LOG.Add("Compressed: " + std::string(is_compressed ? "true" : "false"), "File_Load_Log");
 	LOG.Add("Signature: " + std::string(header->generating_software), "File_Load_Log");
-	LOG.Add("Points count: " + std::to_string(header->number_of_point_records), "File_Load_Log");
-	LOG.Add("X Min: " + std::to_string(header->min_x), "File_Load_Log");
-	LOG.Add("X Max: " + std::to_string(header->max_x), "File_Load_Log");
-	LOG.Add("Y Min: " + std::to_string(header->min_y), "File_Load_Log");
-	LOG.Add("Y Max: " + std::to_string(header->max_y), "File_Load_Log");
-	LOG.Add("Z Min: " + std::to_string(header->min_z), "File_Load_Log");
-	LOG.Add("Z Max: " + std::to_string(header->max_z), "File_Load_Log");
+	LOG.Add("header->number_of_point_records: " + std::to_string(header->number_of_point_records), "File_Load_Log");
+	LOG.Add("header->min_x: " + std::to_string(header->min_x), "File_Load_Log");
+	LOG.Add("header->max_x: " + std::to_string(header->max_x), "File_Load_Log");
+	LOG.Add("header->min_y: " + std::to_string(header->min_y), "File_Load_Log");
+	LOG.Add("header->max_y: " + std::to_string(header->max_y), "File_Load_Log");
+	LOG.Add("header->min_z: " + std::to_string(header->min_z), "File_Load_Log");
+	LOG.Add("header->max_z: " + std::to_string(header->max_z), "File_Load_Log");
+	LOG.Add("header->x_scale_factor : " + std::to_string(header->x_scale_factor), "File_Load_Log");
+	LOG.Add("header->z_scale_factor : " + std::to_string(header->z_scale_factor), "File_Load_Log");
+	LOG.Add("header->y_scale_factor : " + std::to_string(header->y_scale_factor), "File_Load_Log");
 
-	// how many points does the file have
+	// How many points does the file have.
 	laszip_U64 npoints = (header->number_of_point_records ? header->number_of_point_records : header->extended_number_of_point_records);
-
 	LOG.Add("contains " + std::to_string(npoints) + " points", "File_Load_Log");
 
 	PointCloud->vertexInfo.resize(npoints);
@@ -711,71 +710,7 @@ void LoadManager::LoadLazLas(pointCloud* PointCloud, std::string Path)
 	DoublePoints.resize(npoints);
 	PointCloud->vertexIntensity.resize(npoints);
 
-	for (size_t i = 0; i < header->number_of_variable_length_records; i++)
-	{
-		if (header->vlrs[i].record_length_after_header)
-		{
-			std::string text = reinterpret_cast<char*>(header->vlrs[i].data);
-
-			size_t position = text.find("NAD_1983_2011_UTM_Zone_");
-			size_t position1 = text.find("UTM zone ");
-
-			if (position != std::string::npos)
-			{
-				PointCloud->spatialInfo = text;
-				LOG.Add("spatialInfo: " + PointCloud->spatialInfo, "File_Load_Log");
-				PointCloud->UTMZone = text.substr(position + strlen("NAD_1983_2011_UTM_Zone_"), 3);
-				LOG.Add("UTMZone: " + PointCloud->UTMZone, "File_Load_Log");
-				break;
-			}
-			else if (position1 != std::string::npos)
-			{
-				PointCloud->spatialInfo = text;
-				LOG.Add("spatialInfo: " + PointCloud->spatialInfo, "File_Load_Log");
-				PointCloud->UTMZone = text.substr(position + strlen("UTM zone "), 3);
-				LOG.Add("UTMZone: " + PointCloud->UTMZone, "File_Load_Log");
-				break;
-			}
-		}
-	}
-
-	class LASvlr_geo_keys
-	{
-	public:
-		unsigned short key_directory_version;
-		unsigned short key_revision;
-		unsigned short minor_revision;
-		unsigned short number_of_keys;
-	};
-
-	struct GeoProjectionGeoKeys
-	{
-		unsigned short key_id;
-		unsigned short tiff_tag_location;
-		unsigned short count;
-		unsigned short value_offset;
-	};
-
-	for (size_t i = 0; i < header->number_of_variable_length_records; i++)
-	{
-		if (header->vlrs[i].record_id == 34735) // GeoKeyDirectoryTag
-		{
-			LASvlr_geo_keys* read = new LASvlr_geo_keys[1];
-			memcpy_s(read, sizeof(unsigned short) * 4, header->vlrs[i].data, sizeof(unsigned short) * 4);
-
-			GeoProjectionGeoKeys* readKeys = new GeoProjectionGeoKeys[read->number_of_keys];
-			memcpy_s(readKeys, read->number_of_keys * sizeof(GeoProjectionGeoKeys),
-				header->vlrs[i].data + sizeof(unsigned short) * 4, read->number_of_keys * sizeof(unsigned short) * 4);
-
-			for (int j = 0; j < read->number_of_keys; j++)
-			{
-				if (readKeys[j].key_id != 3072)
-					continue;
-
-				PointCloud->EPSG = readKeys[j].value_offset;
-			}
-		}
-	}
+	ExtractLazLasHeaderInfo(PointCloud, header);
 
 	// get a pointer to the points that will be read
 	laszip_point* point;
@@ -785,13 +720,9 @@ void LoadManager::LoadLazLas(pointCloud* PointCloud, std::string Path)
 		return;
 	}
 
-	LOG.Add("header->x_scale_factor : " + std::to_string(header->x_scale_factor), "File_Load_Log");
-	LOG.Add("header->z_scale_factor : " + std::to_string(header->z_scale_factor), "File_Load_Log");
-	LOG.Add("header->y_scale_factor : " + std::to_string(header->y_scale_factor), "File_Load_Log");
-
 	// read the points
 	laszip_U64 p_count = 0;
-	std::vector<MeshVertex> points;
+	std::vector<VertexData> points;
 	float maxIntensity = -FLT_MAX;
 	while (p_count < npoints)
 	{
@@ -808,6 +739,27 @@ void LoadManager::LoadLazLas(pointCloud* PointCloud, std::string Path)
 		double readX = point->X;
 		double readY = point->Z;
 		double readZ = point->Y;
+
+		if (point->num_extra_bytes > 0)
+		{
+			char* test = (char*)point->extra_bytes;
+
+			if (test[0] == '\0')
+			{
+				int y = 0;
+				y++;
+			}
+			else if (test[0] == '\x1')
+			{
+				PointCloud->vertexInfo[p_count].classification = 1;
+			}
+			else
+			{
+				PointCloud->vertexInfo[p_count].classification = 0;
+			}
+		}
+
+		//PointCloud->vertexInfo[p_count].classification = 155;
 
 		DoublePoints[p_count].x = readX * header->x_scale_factor;
 		DoublePoints[p_count].y = readY * header->z_scale_factor;
@@ -880,6 +832,9 @@ void LoadManager::LoadLazLas(pointCloud* PointCloud, std::string Path)
 		PointCloud->Metrics.Adjustment.z = -header->z_offset;
 	}
 
+	PointCloud->Metrics.Min = glm::dvec3(DBL_MAX);
+	PointCloud->Metrics.Max = glm::dvec3(-DBL_MAX);
+
 	for (int i = 0; i < npoints; i++)
 	{
 		if (header->x_offset == 0 && header->y_offset == 0 && header->z_offset == 0)
@@ -928,6 +883,72 @@ void LoadManager::LoadLazLas(pointCloud* PointCloud, std::string Path)
 	PointCloud->loadedFrom = FileInfo;
 	if (PointCloud->loadedFrom != nullptr)
 		PointCloud->loadedFrom->resultingPointCloud = PointCloud;
+}
+
+void LoadManager::ExtractLazLasHeaderInfo(pointCloud* PointCloud, laszip_header* Header)
+{
+	class LASvlr_geo_keys
+	{
+	public:
+		unsigned short key_directory_version;
+		unsigned short key_revision;
+		unsigned short minor_revision;
+		unsigned short number_of_keys;
+	};
+
+	struct GeoProjectionGeoKeys
+	{
+		unsigned short key_id;
+		unsigned short tiff_tag_location;
+		unsigned short count;
+		unsigned short value_offset;
+	};
+
+	for (size_t i = 0; i < Header->number_of_variable_length_records; i++)
+	{
+		if (Header->vlrs[i].record_length_after_header)
+		{
+			std::string text = reinterpret_cast<char*>(Header->vlrs[i].data);
+
+			size_t position = text.find("NAD_1983_2011_UTM_Zone_");
+			size_t position1 = text.find("UTM zone ");
+
+			if (position != std::string::npos)
+			{
+				PointCloud->spatialInfo = text;
+				LOG.Add("spatialInfo: " + PointCloud->spatialInfo, "File_Load_Log");
+				PointCloud->UTMZone = text.substr(position + strlen("NAD_1983_2011_UTM_Zone_"), 3);
+				LOG.Add("UTMZone: " + PointCloud->UTMZone, "File_Load_Log");
+				break;
+			}
+			else if (position1 != std::string::npos)
+			{
+				PointCloud->spatialInfo = text;
+				LOG.Add("spatialInfo: " + PointCloud->spatialInfo, "File_Load_Log");
+				PointCloud->UTMZone = text.substr(position + strlen("UTM zone "), 3);
+				LOG.Add("UTMZone: " + PointCloud->UTMZone, "File_Load_Log");
+				break;
+			}
+		}
+
+		if (Header->vlrs[i].record_id == 34735) // GeoKeyDirectoryTag
+		{
+			LASvlr_geo_keys* read = new LASvlr_geo_keys[1];
+			memcpy_s(read, sizeof(unsigned short) * 4, Header->vlrs[i].data, sizeof(unsigned short) * 4);
+
+			GeoProjectionGeoKeys* readKeys = new GeoProjectionGeoKeys[read->number_of_keys];
+			memcpy_s(readKeys, read->number_of_keys * sizeof(GeoProjectionGeoKeys),
+				Header->vlrs[i].data + sizeof(unsigned short) * 4, read->number_of_keys * sizeof(unsigned short) * 4);
+
+			for (int j = 0; j < read->number_of_keys; j++)
+			{
+				if (readKeys[j].key_id != 3072)
+					continue;
+
+				PointCloud->EPSG = readKeys[j].value_offset;
+			}
+		}
+	}
 }
 
 SaveManager* SaveManager::Instance = nullptr;

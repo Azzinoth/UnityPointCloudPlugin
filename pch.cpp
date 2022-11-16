@@ -21,7 +21,7 @@ std::string getVersion()
 	return result;
 }
 
-static std::string currentVersion = "version 2022.11.3.17700";
+static std::string currentVersion = "version 2022.11.16.17121";
 
 static ID3D11Buffer* m_CB = nullptr;
 static ID3D11VertexShader* m_VertexShader;
@@ -36,7 +36,7 @@ static float projectionMatrix[16];
 
 //static std::atomic<bool> requestToDelete;
 static bool localHighlightDeletedPoints = false;
-const int kVertexSize = 12 + 4;
+const int kVertexSize = sizeof(VertexData);
 
 static int screenIndex = -1;
 static int internalScreenIndex = 0;
@@ -46,14 +46,14 @@ static std::unordered_map<int, ID3D11Buffer*> viewProjectionMatricesBuffers;
 
 ID3D11ComputeShader* computeShader = nullptr;
 
-MeshVertex* allPointsData_CS;
+VertexData* allPointsData_CS;
 
 #define FLOAT_TEST
 
 #ifdef FLOAT_TEST
 	//float* InputData_CS;
 #else
-	MeshVertex* InputData_CS;
+	VertexData* InputData_CS;
 #endif // FLOAT_TEST
 
 #ifdef USE_COMPUTE_SHADER
@@ -99,910 +99,101 @@ static bool highlightDeletedPoints = false;
 static glm::vec3 deletionSpherePosition = glm::vec3(0.0f);
 static float deletionSphereSize = 0.0f;
 
+std::vector<pointCloud*> pointClouds;
 
+void WorkOnDeleteRequests()
+{
+	std::vector<DeleteRequest> LocalCopy = DeleteRequests;
+	DeleteRequests.clear();
+
+	for (size_t i = 0; i < LocalCopy.size(); i++)
+	{
+		int pointWasDeleted = 0;
 #ifdef USE_COMPUTE_SHADER
-const BYTE kVertexShaderCode[] =
-{
-	 68,  88,  66,  67, 151, 203,
-	165,  23, 102,  69,  86,  29,
-	 66, 255, 232,  30, 144, 208,
-	226,  99,   1,   0,   0,   0,
-	164,   5,   0,   0,   6,   0,
-	  0,   0,  56,   0,   0,   0,
-	216,   1,   0,   0,  76,   2,
-	  0,   0, 160,   2,   0,   0,
-	 24,   5,   0,   0,  40,   5,
-	  0,   0,  82,  68,  69,  70,
-	152,   1,   0,   0,   2,   0,
-	  0,   0, 112,   0,   0,   0,
-	  2,   0,   0,   0,  28,   0,
-	  0,   0,   0,   4, 254, 255,
-	  0,   1,   0,   0, 100,   1,
-	  0,   0,  92,   0,   0,   0,
-	  5,   0,   0,   0,   6,   0,
-	  0,   0,   1,   0,   0,   0,
-	 16,   0,   0,   0,   0,   0,
-	  0,   0,   1,   0,   0,   0,
-	  1,   0,   0,   0, 104,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   1,   0,
-	  0,   0,   1,   0,   0,   0,
-	112, 111, 105, 110, 116,  66,
-	117, 102, 102, 101, 114,   0,
-	 77, 121,  67,  66,   0, 171,
-	171, 171, 104,   0,   0,   0,
-	  1,   0,   0,   0, 160,   0,
-	  0,   0,  64,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,  92,   0,   0,   0,
-	  1,   0,   0,   0, 212,   0,
-	  0,   0,  16,   0,   0,   0,
-	  0,   0,   0,   0,   3,   0,
-	  0,   0, 184,   0,   0,   0,
-	  0,   0,   0,   0,  64,   0,
-	  0,   0,   2,   0,   0,   0,
-	196,   0,   0,   0,   0,   0,
-	  0,   0, 119, 111, 114, 108,
-	100,  77,  97, 116, 114, 105,
-	120,   0,   3,   0,   3,   0,
-	  4,   0,   4,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	236,   0,   0,   0,   0,   0,
-	  0,   0,  16,   0,   0,   0,
-	  2,   0,   0,   0,  84,   1,
-	  0,   0,   0,   0,   0,   0,
-	 36,  69, 108, 101, 109, 101,
-	110, 116,   0, 120,   0, 171,
-	  0,   0,   3,   0,   1,   0,
-	  1,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0, 121,   0,
-	122,   0,  99, 111, 108, 111,
-	114,   0, 171, 171,   0,   0,
-	  2,   0,   1,   0,   1,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0, 245,   0,   0,   0,
-	248,   0,   0,   0,   0,   0,
-	  0,   0,   8,   1,   0,   0,
-	248,   0,   0,   0,   4,   0,
-	  0,   0,  10,   1,   0,   0,
-	248,   0,   0,   0,   8,   0,
-	  0,   0,  12,   1,   0,   0,
-	 20,   1,   0,   0,  12,   0,
-	  0,   0,   5,   0,   0,   0,
-	  1,   0,   4,   0,   0,   0,
-	  4,   0,  36,   1,   0,   0,
-	 77, 105,  99, 114, 111, 115,
-	111, 102, 116,  32,  40,  82,
-	 41,  32,  72,  76,  83,  76,
-	 32,  83, 104,  97, 100, 101,
-	114,  32,  67, 111, 109, 112,
-	105, 108, 101, 114,  32,  57,
-	 46,  50,  57,  46,  57,  53,
-	 50,  46,  51,  49,  49,  49,
-	  0, 171, 171, 171,  73,  83,
-	 71,  78, 108,   0,   0,   0,
-	  3,   0,   0,   0,   8,   0,
-	  0,   0,  80,   0,   0,   0,
-	  0,   0,   0,   0,   6,   0,
-	  0,   0,   1,   0,   0,   0,
-	  0,   0,   0,   0,   1,   1,
-	  0,   0,  92,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   3,   0,   0,   0,
-	  1,   0,   0,   0,   7,   0,
-	  0,   0, 101,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   3,   0,   0,   0,
-	  2,   0,   0,   0,  15,   0,
-	  0,   0,  83,  86,  95,  86,
-	101, 114, 116, 101, 120,  73,
-	 68,   0,  80,  79,  83,  73,
-	 84,  73,  79,  78,   0,  67,
-	 79,  76,  79,  82,   0, 171,
-	 79,  83,  71,  78,  76,   0,
-	  0,   0,   2,   0,   0,   0,
-	  8,   0,   0,   0,  56,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   3,   0,
-	  0,   0,   0,   0,   0,   0,
-	 15,   0,   0,   0,  62,   0,
-	  0,   0,   0,   0,   0,   0,
-	  1,   0,   0,   0,   3,   0,
-	  0,   0,   1,   0,   0,   0,
-	 15,   0,   0,   0,  67,  79,
-	 76,  79,  82,   0,  83,  86,
-	 95,  80, 111, 115, 105, 116,
-	105, 111, 110,   0, 171, 171,
-	 83,  72,  69,  88, 112,   2,
-	  0,   0,  64,   0,   1,   0,
-	156,   0,   0,   0, 106,  72,
-	  0,   1,  89,   0,   0,   4,
-	 70, 142,  32,   0,   0,   0,
-	  0,   0,   4,   0,   0,   0,
-	162,   0,   0,   4,   0, 112,
-	 16,   0,   0,   0,   0,   0,
-	 16,   0,   0,   0,  96,   0,
-	  0,   4,  18,  16,  16,   0,
-	  0,   0,   0,   0,   6,   0,
-	  0,   0, 101,   0,   0,   3,
-	242,  32,  16,   0,   0,   0,
-	  0,   0, 103,   0,   0,   4,
-	242,  32,  16,   0,   1,   0,
-	  0,   0,   1,   0,   0,   0,
-	104,   0,   0,   2,   2,   0,
-	  0,   0, 167,   0,   0,   9,
-	 18,   0,  16,   0,   0,   0,
-	  0,   0,  10,  16,  16,   0,
-	  0,   0,   0,   0,   1,  64,
-	  0,   0,  12,   0,   0,   0,
-	  6, 112,  16,   0,   0,   0,
-	  0,   0,  85,   0,   0,   7,
-	 34,   0,  16,   0,   0,   0,
-	  0,   0,  10,   0,  16,   0,
-	  0,   0,   0,   0,   1,  64,
-	  0,   0,   8,   0,   0,   0,
-	 85,   0,   0,   7,  66,   0,
-	 16,   0,   0,   0,   0,   0,
-	 10,   0,  16,   0,   0,   0,
-	  0,   0,   1,  64,   0,   0,
-	 16,   0,   0,   0,   1,   0,
-	  0,   7,  18,   0,  16,   0,
-	  0,   0,   0,   0,  10,   0,
-	 16,   0,   0,   0,   0,   0,
-	  1,  64,   0,   0, 255,   0,
-	  0,   0,  86,   0,   0,   5,
-	 18,   0,  16,   0,   0,   0,
-	  0,   0,  10,   0,  16,   0,
-	  0,   0,   0,   0,  56,   0,
-	  0,   7,  18,  32,  16,   0,
-	  0,   0,   0,   0,  10,   0,
-	 16,   0,   0,   0,   0,   0,
-	  1,  64,   0,   0, 129, 128,
-	128,  59,   1,   0,   0,  10,
-	 50,   0,  16,   0,   0,   0,
-	  0,   0, 150,   5,  16,   0,
-	  0,   0,   0,   0,   2,  64,
-	  0,   0, 255,   0,   0,   0,
-	255,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	 86,   0,   0,   5,  50,   0,
-	 16,   0,   0,   0,   0,   0,
-	 70,   0,  16,   0,   0,   0,
-	  0,   0,  56,   0,   0,  10,
-	 98,  32,  16,   0,   0,   0,
-	  0,   0,   6,   1,  16,   0,
-	  0,   0,   0,   0,   2,  64,
-	  0,   0,   0,   0,   0,   0,
-	129, 128, 128,  59, 129, 128,
-	128,  59,   0,   0,   0,   0,
-	167,   0,   0,   9, 242,   0,
-	 16,   0,   0,   0,   0,   0,
-	 10,  16,  16,   0,   0,   0,
-	  0,   0,   1,  64,   0,   0,
-	  0,   0,   0,   0,  70, 126,
-	 16,   0,   0,   0,   0,   0,
-	 42,   0,   0,   7, 130,   0,
-	 16,   0,   0,   0,   0,   0,
-	 58,   0,  16,   0,   0,   0,
-	  0,   0,   1,  64,   0,   0,
-	 24,   0,   0,   0,  43,   0,
-	  0,   5, 130,   0,  16,   0,
-	  0,   0,   0,   0,  58,   0,
-	 16,   0,   0,   0,   0,   0,
-	 56,   0,   0,   7, 130,  32,
-	 16,   0,   0,   0,   0,   0,
-	 58,   0,  16,   0,   0,   0,
-	  0,   0,   1,  64,   0,   0,
-	129, 128, 128,  59,  56,   0,
-	  0,   8, 242,   0,  16,   0,
-	  1,   0,   0,   0,  86,   5,
-	 16,   0,   0,   0,   0,   0,
-	 70, 142,  32,   0,   0,   0,
-	  0,   0,   1,   0,   0,   0,
-	 50,   0,   0,  10, 242,   0,
-	 16,   0,   1,   0,   0,   0,
-	 70, 142,  32,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  6,   0,  16,   0,   0,   0,
-	  0,   0,  70,  14,  16,   0,
-	  1,   0,   0,   0,  50,   0,
-	  0,  10, 242,   0,  16,   0,
-	  0,   0,   0,   0,  70, 142,
-	 32,   0,   0,   0,   0,   0,
-	  2,   0,   0,   0, 166,  10,
-	 16,   0,   0,   0,   0,   0,
-	 70,  14,  16,   0,   1,   0,
-	  0,   0,   0,   0,   0,   8,
-	242,  32,  16,   0,   1,   0,
-	  0,   0,  70,  14,  16,   0,
-	  0,   0,   0,   0,  70, 142,
-	 32,   0,   0,   0,   0,   0,
-	  3,   0,   0,   0,  62,   0,
-	  0,   1,  83,  70,  73,  48,
-	  8,   0,   0,   0,   2,   0,
-	  0,   0,   0,   0,   0,   0,
-	 83,  84,  65,  84, 116,   0,
-	  0,   0,  18,   0,   0,   0,
-	  2,   0,   0,   0,   0,   0,
-	  0,   0,   3,   0,   0,   0,
-	  5,   0,   0,   0,   1,   0,
-	  0,   0,   4,   0,   0,   0,
-	  1,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   3,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0
-};
+
+		deletionSpherePosition = glm::vec3(center[0], center[1], center[2]);
+		deletionSphereSize = size / 2.0f;
+
+		for (size_t j = 0; j < pointClouds.size(); j++)
+		{
+			if (!pointClouds[i]->wasFullyLoaded)
+				continue;
+
+			glm::vec3 localPosition = glm::inverse(glm::transpose(pointClouds[i]->worldMatrix)) * glm::vec4(deletionSpherePosition, 1.0f);
+			float extractedScale = glm::length(glm::transpose(pointClouds[i]->worldMatrix)[0]);
+			size /= extractedScale;
+
+			if (pointClouds[i]->getSearchOctree()->isInOctreeBound(localPosition, size))
+			{
+				//pointClouds[i]->getSearchOctree()->deleteObjects(localPosition, size);
+				//pointClouds[i]->deletionOccuredThisFrame = true;
+
+				runMyDeleteComputeShader(pointClouds[i]);
+
+				UNDO_MANAGER.addAction(new deleteAction(localPosition, size, pointClouds[i]));
+				//anyPointWasDeleted = true;
+			}
+
+			/*if (pointClouds[i]->getSearchOctree()->pointsToDelete.size() > 0)
+			{
+				UNDO_MANAGER.addAction(new deleteAction(localPosition, size, pointClouds[i]));
+
+				LOG.Add("==============================================================", "deleteEvents");
+				LOG.Add("Brush location: ", localPosition, "deleteEvents");
+				LOG.Add("Brush size: " + std::to_string(size), "deleteEvents");
+				LOG.Add("pointsToDelete size: " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
+
+				anyPointWasDeleted = true;
+			}*/
+}
 #else
+		for (size_t j = 0; j < pointClouds.size(); j++)
+		{
+			if (!pointClouds[j]->wasFullyLoaded)
+				continue;
 
-const BYTE kVertexShaderCode[] =
-{
-	 68,  88,  66,  67,  86, 189,
-	 21,  50, 166, 106, 171,   1,
-	 10,  62, 115,  48, 224, 137,
-	163, 129,   1,   0,   0,   0,
-	168,   2,   0,   0,   4,   0,
-	  0,   0,  48,   0,   0,   0,
-	  0,   1,   0,   0,   4,   2,
-	  0,   0,  84,   2,   0,   0,
-	 65, 111, 110,  57, 200,   0,
-	  0,   0, 200,   0,   0,   0,
-	  0,   2, 254, 255, 148,   0,
-	  0,   0,  52,   0,   0,   0,
-	  1,   0,  36,   0,   0,   0,
-	 48,   0,   0,   0,  48,   0,
-	  0,   0,  36,   0,   1,   0,
-	 48,   0,   0,   0,   0,   0,
-	  4,   0,   1,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  1,   2, 254, 255,  31,   0,
-	  0,   2,   5,   0,   0, 128,
-	  0,   0,  15, 144,  31,   0,
-	  0,   2,   5,   0,   1, 128,
-	  1,   0,  15, 144,   5,   0,
-	  0,   3,   0,   0,  15, 128,
-	  0,   0,  85, 144,   2,   0,
-	228, 160,   4,   0,   0,   4,
-	  0,   0,  15, 128,   1,   0,
-	228, 160,   0,   0,   0, 144,
-	  0,   0, 228, 128,   4,   0,
-	  0,   4,   0,   0,  15, 128,
-	  3,   0, 228, 160,   0,   0,
-	170, 144,   0,   0, 228, 128,
-	  2,   0,   0,   3,   0,   0,
-	 15, 128,   0,   0, 228, 128,
-	  4,   0, 228, 160,   4,   0,
-	  0,   4,   0,   0,   3, 192,
-	  0,   0, 255, 128,   0,   0,
-	228, 160,   0,   0, 228, 128,
-	  1,   0,   0,   2,   0,   0,
-	 12, 192,   0,   0, 228, 128,
-	  1,   0,   0,   2,   0,   0,
-	 15, 224,   1,   0, 228, 144,
-	255, 255,   0,   0,  83,  72,
-	 68,  82, 252,   0,   0,   0,
-	 64,   0,   1,   0,  63,   0,
-	  0,   0,  89,   0,   0,   4,
-	 70, 142,  32,   0,   0,   0,
-	  0,   0,   4,   0,   0,   0,
-	 95,   0,   0,   3, 114,  16,
-	 16,   0,   0,   0,   0,   0,
-	 95,   0,   0,   3, 242,  16,
-	 16,   0,   1,   0,   0,   0,
-	101,   0,   0,   3, 242,  32,
-	 16,   0,   0,   0,   0,   0,
-	103,   0,   0,   4, 242,  32,
-	 16,   0,   1,   0,   0,   0,
-	  1,   0,   0,   0, 104,   0,
-	  0,   2,   1,   0,   0,   0,
-	 54,   0,   0,   5, 242,  32,
-	 16,   0,   0,   0,   0,   0,
-	 70,  30,  16,   0,   1,   0,
-	  0,   0,  56,   0,   0,   8,
-	242,   0,  16,   0,   0,   0,
-	  0,   0,  86,  21,  16,   0,
-	  0,   0,   0,   0,  70, 142,
-	 32,   0,   0,   0,   0,   0,
-	  1,   0,   0,   0,  50,   0,
-	  0,  10, 242,   0,  16,   0,
-	  0,   0,   0,   0,  70, 142,
-	 32,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   6,  16,
-	 16,   0,   0,   0,   0,   0,
-	 70,  14,  16,   0,   0,   0,
-	  0,   0,  50,   0,   0,  10,
-	242,   0,  16,   0,   0,   0,
-	  0,   0,  70, 142,  32,   0,
-	  0,   0,   0,   0,   2,   0,
-	  0,   0, 166,  26,  16,   0,
-	  0,   0,   0,   0,  70,  14,
-	 16,   0,   0,   0,   0,   0,
-	  0,   0,   0,   8, 242,  32,
-	 16,   0,   1,   0,   0,   0,
-	 70,  14,  16,   0,   0,   0,
-	  0,   0,  70, 142,  32,   0,
-	  0,   0,   0,   0,   3,   0,
-	  0,   0,  62,   0,   0,   1,
-	 73,  83,  71,  78,  72,   0,
-	  0,   0,   2,   0,   0,   0,
-	  8,   0,   0,   0,  56,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   3,   0,
-	  0,   0,   0,   0,   0,   0,
-	  7,   7,   0,   0,  65,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   3,   0,
-	  0,   0,   1,   0,   0,   0,
-	 15,  15,   0,   0,  80,  79,
-	 83,  73,  84,  73,  79,  78,
-	  0,  67,  79,  76,  79,  82,
-	  0, 171,  79,  83,  71,  78,
-	 76,   0,   0,   0,   2,   0,
-	  0,   0,   8,   0,   0,   0,
-	 56,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  3,   0,   0,   0,   0,   0,
-	  0,   0,  15,   0,   0,   0,
-	 62,   0,   0,   0,   0,   0,
-	  0,   0,   1,   0,   0,   0,
-	  3,   0,   0,   0,   1,   0,
-	  0,   0,  15,   0,   0,   0,
-	 67,  79,  76,  79,  82,   0,
-	 83,  86,  95,  80, 111, 115,
-	105, 116, 105, 111, 110,   0,
-	171, 171
-};
+			glm::vec3 localPosition = glm::inverse(glm::transpose(pointClouds[j]->worldMatrix)) * glm::vec4(LocalCopy[i].Center, 1.0f);
+			float extractedScale = glm::length(glm::transpose(pointClouds[j]->worldMatrix)[0]);
+			LocalCopy[i].Size /= extractedScale;
 
-//const BYTE kVertexShaderCode[] =
-//{
-//	 68,  88,  66,  67, 151, 203,
-//	165,  23, 102,  69,  86,  29,
-//	 66, 255, 232,  30, 144, 208,
-//	226,  99,   1,   0,   0,   0,
-//	164,   5,   0,   0,   6,   0,
-//	  0,   0,  56,   0,   0,   0,
-//	216,   1,   0,   0,  76,   2,
-//	  0,   0, 160,   2,   0,   0,
-//	 24,   5,   0,   0,  40,   5,
-//	  0,   0,  82,  68,  69,  70,
-//	152,   1,   0,   0,   2,   0,
-//	  0,   0, 112,   0,   0,   0,
-//	  2,   0,   0,   0,  28,   0,
-//	  0,   0,   0,   4, 254, 255,
-//	  0,   1,   0,   0, 100,   1,
-//	  0,   0,  92,   0,   0,   0,
-//	  5,   0,   0,   0,   6,   0,
-//	  0,   0,   1,   0,   0,   0,
-//	 16,   0,   0,   0,   0,   0,
-//	  0,   0,   1,   0,   0,   0,
-//	  1,   0,   0,   0, 104,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   1,   0,
-//	  0,   0,   1,   0,   0,   0,
-//	112, 111, 105, 110, 116,  66,
-//	117, 102, 102, 101, 114,   0,
-//	 77, 121,  67,  66,   0, 171,
-//	171, 171, 104,   0,   0,   0,
-//	  1,   0,   0,   0, 160,   0,
-//	  0,   0,  64,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,  92,   0,   0,   0,
-//	  1,   0,   0,   0, 212,   0,
-//	  0,   0,  16,   0,   0,   0,
-//	  0,   0,   0,   0,   3,   0,
-//	  0,   0, 184,   0,   0,   0,
-//	  0,   0,   0,   0,  64,   0,
-//	  0,   0,   2,   0,   0,   0,
-//	196,   0,   0,   0,   0,   0,
-//	  0,   0, 119, 111, 114, 108,
-//	100,  77,  97, 116, 114, 105,
-//	120,   0,   3,   0,   3,   0,
-//	  4,   0,   4,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	236,   0,   0,   0,   0,   0,
-//	  0,   0,  16,   0,   0,   0,
-//	  2,   0,   0,   0,  84,   1,
-//	  0,   0,   0,   0,   0,   0,
-//	 36,  69, 108, 101, 109, 101,
-//	110, 116,   0, 120,   0, 171,
-//	  0,   0,   3,   0,   1,   0,
-//	  1,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0, 121,   0,
-//	122,   0,  99, 111, 108, 111,
-//	114,   0, 171, 171,   0,   0,
-//	  2,   0,   1,   0,   1,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0, 245,   0,   0,   0,
-//	248,   0,   0,   0,   0,   0,
-//	  0,   0,   8,   1,   0,   0,
-//	248,   0,   0,   0,   4,   0,
-//	  0,   0,  10,   1,   0,   0,
-//	248,   0,   0,   0,   8,   0,
-//	  0,   0,  12,   1,   0,   0,
-//	 20,   1,   0,   0,  12,   0,
-//	  0,   0,   5,   0,   0,   0,
-//	  1,   0,   4,   0,   0,   0,
-//	  4,   0,  36,   1,   0,   0,
-//	 77, 105,  99, 114, 111, 115,
-//	111, 102, 116,  32,  40,  82,
-//	 41,  32,  72,  76,  83,  76,
-//	 32,  83, 104,  97, 100, 101,
-//	114,  32,  67, 111, 109, 112,
-//	105, 108, 101, 114,  32,  57,
-//	 46,  50,  57,  46,  57,  53,
-//	 50,  46,  51,  49,  49,  49,
-//	  0, 171, 171, 171,  73,  83,
-//	 71,  78, 108,   0,   0,   0,
-//	  3,   0,   0,   0,   8,   0,
-//	  0,   0,  80,   0,   0,   0,
-//	  0,   0,   0,   0,   6,   0,
-//	  0,   0,   1,   0,   0,   0,
-//	  0,   0,   0,   0,   1,   1,
-//	  0,   0,  92,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   3,   0,   0,   0,
-//	  1,   0,   0,   0,   7,   0,
-//	  0,   0, 101,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   3,   0,   0,   0,
-//	  2,   0,   0,   0,  15,   0,
-//	  0,   0,  83,  86,  95,  86,
-//	101, 114, 116, 101, 120,  73,
-//	 68,   0,  80,  79,  83,  73,
-//	 84,  73,  79,  78,   0,  67,
-//	 79,  76,  79,  82,   0, 171,
-//	 79,  83,  71,  78,  76,   0,
-//	  0,   0,   2,   0,   0,   0,
-//	  8,   0,   0,   0,  56,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   3,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	 15,   0,   0,   0,  62,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  1,   0,   0,   0,   3,   0,
-//	  0,   0,   1,   0,   0,   0,
-//	 15,   0,   0,   0,  67,  79,
-//	 76,  79,  82,   0,  83,  86,
-//	 95,  80, 111, 115, 105, 116,
-//	105, 111, 110,   0, 171, 171,
-//	 83,  72,  69,  88, 112,   2,
-//	  0,   0,  64,   0,   1,   0,
-//	156,   0,   0,   0, 106,  72,
-//	  0,   1,  89,   0,   0,   4,
-//	 70, 142,  32,   0,   0,   0,
-//	  0,   0,   4,   0,   0,   0,
-//	162,   0,   0,   4,   0, 112,
-//	 16,   0,   0,   0,   0,   0,
-//	 16,   0,   0,   0,  96,   0,
-//	  0,   4,  18,  16,  16,   0,
-//	  0,   0,   0,   0,   6,   0,
-//	  0,   0, 101,   0,   0,   3,
-//	242,  32,  16,   0,   0,   0,
-//	  0,   0, 103,   0,   0,   4,
-//	242,  32,  16,   0,   1,   0,
-//	  0,   0,   1,   0,   0,   0,
-//	104,   0,   0,   2,   2,   0,
-//	  0,   0, 167,   0,   0,   9,
-//	 18,   0,  16,   0,   0,   0,
-//	  0,   0,  10,  16,  16,   0,
-//	  0,   0,   0,   0,   1,  64,
-//	  0,   0,  12,   0,   0,   0,
-//	  6, 112,  16,   0,   0,   0,
-//	  0,   0,  85,   0,   0,   7,
-//	 34,   0,  16,   0,   0,   0,
-//	  0,   0,  10,   0,  16,   0,
-//	  0,   0,   0,   0,   1,  64,
-//	  0,   0,   8,   0,   0,   0,
-//	 85,   0,   0,   7,  66,   0,
-//	 16,   0,   0,   0,   0,   0,
-//	 10,   0,  16,   0,   0,   0,
-//	  0,   0,   1,  64,   0,   0,
-//	 16,   0,   0,   0,   1,   0,
-//	  0,   7,  18,   0,  16,   0,
-//	  0,   0,   0,   0,  10,   0,
-//	 16,   0,   0,   0,   0,   0,
-//	  1,  64,   0,   0, 255,   0,
-//	  0,   0,  86,   0,   0,   5,
-//	 18,   0,  16,   0,   0,   0,
-//	  0,   0,  10,   0,  16,   0,
-//	  0,   0,   0,   0,  56,   0,
-//	  0,   7,  18,  32,  16,   0,
-//	  0,   0,   0,   0,  10,   0,
-//	 16,   0,   0,   0,   0,   0,
-//	  1,  64,   0,   0, 129, 128,
-//	128,  59,   1,   0,   0,  10,
-//	 50,   0,  16,   0,   0,   0,
-//	  0,   0, 150,   5,  16,   0,
-//	  0,   0,   0,   0,   2,  64,
-//	  0,   0, 255,   0,   0,   0,
-//	255,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	 86,   0,   0,   5,  50,   0,
-//	 16,   0,   0,   0,   0,   0,
-//	 70,   0,  16,   0,   0,   0,
-//	  0,   0,  56,   0,   0,  10,
-//	 98,  32,  16,   0,   0,   0,
-//	  0,   0,   6,   1,  16,   0,
-//	  0,   0,   0,   0,   2,  64,
-//	  0,   0,   0,   0,   0,   0,
-//	129, 128, 128,  59, 129, 128,
-//	128,  59,   0,   0,   0,   0,
-//	167,   0,   0,   9, 242,   0,
-//	 16,   0,   0,   0,   0,   0,
-//	 10,  16,  16,   0,   0,   0,
-//	  0,   0,   1,  64,   0,   0,
-//	  0,   0,   0,   0,  70, 126,
-//	 16,   0,   0,   0,   0,   0,
-//	 42,   0,   0,   7, 130,   0,
-//	 16,   0,   0,   0,   0,   0,
-//	 58,   0,  16,   0,   0,   0,
-//	  0,   0,   1,  64,   0,   0,
-//	 24,   0,   0,   0,  43,   0,
-//	  0,   5, 130,   0,  16,   0,
-//	  0,   0,   0,   0,  58,   0,
-//	 16,   0,   0,   0,   0,   0,
-//	 56,   0,   0,   7, 130,  32,
-//	 16,   0,   0,   0,   0,   0,
-//	 58,   0,  16,   0,   0,   0,
-//	  0,   0,   1,  64,   0,   0,
-//	129, 128, 128,  59,  56,   0,
-//	  0,   8, 242,   0,  16,   0,
-//	  1,   0,   0,   0,  86,   5,
-//	 16,   0,   0,   0,   0,   0,
-//	 70, 142,  32,   0,   0,   0,
-//	  0,   0,   1,   0,   0,   0,
-//	 50,   0,   0,  10, 242,   0,
-//	 16,   0,   1,   0,   0,   0,
-//	 70, 142,  32,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  6,   0,  16,   0,   0,   0,
-//	  0,   0,  70,  14,  16,   0,
-//	  1,   0,   0,   0,  50,   0,
-//	  0,  10, 242,   0,  16,   0,
-//	  0,   0,   0,   0,  70, 142,
-//	 32,   0,   0,   0,   0,   0,
-//	  2,   0,   0,   0, 166,  10,
-//	 16,   0,   0,   0,   0,   0,
-//	 70,  14,  16,   0,   1,   0,
-//	  0,   0,   0,   0,   0,   8,
-//	242,  32,  16,   0,   1,   0,
-//	  0,   0,  70,  14,  16,   0,
-//	  0,   0,   0,   0,  70, 142,
-//	 32,   0,   0,   0,   0,   0,
-//	  3,   0,   0,   0,  62,   0,
-//	  0,   1,  83,  70,  73,  48,
-//	  8,   0,   0,   0,   2,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	 83,  84,  65,  84, 116,   0,
-//	  0,   0,  18,   0,   0,   0,
-//	  2,   0,   0,   0,   0,   0,
-//	  0,   0,   3,   0,   0,   0,
-//	  5,   0,   0,   0,   1,   0,
-//	  0,   0,   4,   0,   0,   0,
-//	  1,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   3,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0,   0,   0,
-//	  0,   0,   0,   0
-//};
+			if (pointClouds[j]->getSearchOctree()->isInOctreeBound(localPosition, LocalCopy[i].Size))
+			{
+				pointClouds[j]->getSearchOctree()->deleteObjects(localPosition, LocalCopy[i].Size);
+			}
+
+			if (pointClouds[j]->getSearchOctree()->pointsToDelete.size() > 0)
+			{
+				UNDO_MANAGER.addAction(new deleteAction(localPosition, LocalCopy[i].Size, pointClouds[j]));
+
+				LOG.Add("==============================================================", "deleteEvents");
+				LOG.Add("Brush location: " + vec3ToString(localPosition), "deleteEvents");
+				LOG.Add("Brush size: " + std::to_string(LocalCopy[i].Size), "deleteEvents");
+				LOG.Add("pointsToDelete size: " + std::to_string(pointClouds[j]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
+
+				octree* currentOctree = pointClouds[j]->getSearchOctree();
+				for (size_t j = 0; j < currentOctree->pointsToDelete.size(); j++)
+				{
+					if (pointClouds[j]->vertexInfo[currentOctree->pointsToDelete[j]].position[0] != DELETED_POINTS_COORDINATE &&
+						pointClouds[j]->vertexInfo[currentOctree->pointsToDelete[j]].position[1] != DELETED_POINTS_COORDINATE &&
+						pointClouds[j]->vertexInfo[currentOctree->pointsToDelete[j]].position[2] != DELETED_POINTS_COORDINATE)
+					{
+						pointWasDeleted++;
+						//break;
+					}
+				}
+
+				ID3D11DeviceContext* ctx = NULL;
+				GPU.getDevice()->GetImmediateContext(&ctx);
+				onDrawDeletePointsinGPUMem(pointClouds[j], ctx);
+				ctx->Release();
+			}
+		}
 
 #endif // USE_COMPUTE_SHADER
 
-const BYTE kPixelShaderCode[] =
-{
-	 68,  88,  66,  67, 196,  65,
-	213, 199,  14,  78,  29, 150,
-	 87, 236, 231, 156, 203, 125,
-	244, 112,   1,   0,   0,   0,
-	 32,   1,   0,   0,   4,   0,
-	  0,   0,  48,   0,   0,   0,
-	124,   0,   0,   0, 188,   0,
-	  0,   0, 236,   0,   0,   0,
-	 65, 111, 110,  57,  68,   0,
-	  0,   0,  68,   0,   0,   0,
-	  0,   2, 255, 255,  32,   0,
-	  0,   0,  36,   0,   0,   0,
-	  0,   0,  36,   0,   0,   0,
-	 36,   0,   0,   0,  36,   0,
-	  0,   0,  36,   0,   0,   0,
-	 36,   0,   1,   2, 255, 255,
-	 31,   0,   0,   2,   0,   0,
-	  0, 128,   0,   0,  15, 176,
-	  1,   0,   0,   2,   0,   8,
-	 15, 128,   0,   0, 228, 176,
-	255, 255,   0,   0,  83,  72,
-	 68,  82,  56,   0,   0,   0,
-	 64,   0,   0,   0,  14,   0,
-	  0,   0,  98,  16,   0,   3,
-	242,  16,  16,   0,   0,   0,
-	  0,   0, 101,   0,   0,   3,
-	242,  32,  16,   0,   0,   0,
-	  0,   0,  54,   0,   0,   5,
-	242,  32,  16,   0,   0,   0,
-	  0,   0,  70,  30,  16,   0,
-	  0,   0,   0,   0,  62,   0,
-	  0,   1,  73,  83,  71,  78,
-	 40,   0,   0,   0,   1,   0,
-	  0,   0,   8,   0,   0,   0,
-	 32,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  3,   0,   0,   0,   0,   0,
-	  0,   0,  15,  15,   0,   0,
-	 67,  79,  76,  79,  82,   0,
-	171, 171,  79,  83,  71,  78,
-	 44,   0,   0,   0,   1,   0,
-	  0,   0,   8,   0,   0,   0,
-	 32,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  3,   0,   0,   0,   0,   0,
-	  0,   0,  15,   0,   0,   0,
-	 83,  86,  95,  84,  65,  82,
-	 71,  69,  84,   0, 171, 171
-};
-
-const BYTE g_CSMain[] =
-{
-	 68,  88,  66,  67, 211, 222,
-	194, 146, 173,   7,  60, 211,
-	 47, 242, 108, 180, 169, 113,
-	149, 208,   1,   0,   0,   0,
-	136,   5,   0,   0,   5,   0,
-	  0,   0,  52,   0,   0,   0,
-	176,   2,   0,   0, 192,   2,
-	  0,   0, 208,   2,   0,   0,
-	236,   4,   0,   0,  82,  68,
-	 69,  70, 116,   2,   0,   0,
-	  3,   0,   0,   0, 184,   0,
-	  0,   0,   3,   0,   0,   0,
-	 60,   0,   0,   0,   0,   5,
-	 83,  67,   0,   1,   0,   0,
-	 64,   2,   0,   0,  82,  68,
-	 49,  49,  60,   0,   0,   0,
-	 24,   0,   0,   0,  32,   0,
-	  0,   0,  40,   0,   0,   0,
-	 36,   0,   0,   0,  12,   0,
-	  0,   0,   0,   0,   0,   0,
-	156,   0,   0,   0,   5,   0,
-	  0,   0,   6,   0,   0,   0,
-	  1,   0,   0,   0,  16,   0,
-	  0,   0,   0,   0,   0,   0,
-	  1,   0,   0,   0,   1,   0,
-	  0,   0, 164,   0,   0,   0,
-	  5,   0,   0,   0,   6,   0,
-	  0,   0,   1,   0,   0,   0,
-	  4,   0,   0,   0,   1,   0,
-	  0,   0,   1,   0,   0,   0,
-	  1,   0,   0,   0, 172,   0,
-	  0,   0,   9,   0,   0,   0,
-	  6,   0,   0,   0,   1,   0,
-	  0,   0,  16,   0,   0,   0,
-	  0,   0,   0,   0,   1,   0,
-	  0,   0,   1,   0,   0,   0,
-	 66, 117, 102, 102, 101, 114,
-	 48,   0,  66, 117, 102, 102,
-	101, 114,  49,   0,  66, 117,
-	102, 102, 101, 114,  79, 117,
-	116,   0, 171, 171, 156,   0,
-	  0,   0,   1,   0,   0,   0,
-	  0,   1,   0,   0,  16,   0,
-	  0,   0,   0,   0,   0,   0,
-	  3,   0,   0,   0, 164,   0,
-	  0,   0,   1,   0,   0,   0,
-	240,   1,   0,   0,   4,   0,
-	  0,   0,   0,   0,   0,   0,
-	  3,   0,   0,   0, 172,   0,
-	  0,   0,   1,   0,   0,   0,
-	 24,   2,   0,   0,  16,   0,
-	  0,   0,   0,   0,   0,   0,
-	  3,   0,   0,   0,  40,   1,
-	  0,   0,   0,   0,   0,   0,
-	 16,   0,   0,   0,   2,   0,
-	  0,   0, 204,   1,   0,   0,
-	  0,   0,   0,   0, 255, 255,
-	255, 255,   0,   0,   0,   0,
-	255, 255, 255, 255,   0,   0,
-	  0,   0,  36,  69, 108, 101,
-	109, 101, 110, 116,   0,  66,
-	117, 102,  84, 121, 112, 101,
-	  0, 120,   0, 102, 108, 111,
-	 97, 116,   0, 171, 171, 171,
-	  0,   0,   3,   0,   1,   0,
-	  1,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,  59,   1,   0,   0,
-	121,   0, 122,   0,  99, 111,
-	108, 111, 114,   0, 105, 110,
-	116,   0, 171, 171,   0,   0,
-	  2,   0,   1,   0,   1,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	114,   1,   0,   0,  57,   1,
-	  0,   0,  68,   1,   0,   0,
-	  0,   0,   0,   0, 104,   1,
-	  0,   0,  68,   1,   0,   0,
-	  4,   0,   0,   0, 106,   1,
-	  0,   0,  68,   1,   0,   0,
-	  8,   0,   0,   0, 108,   1,
-	  0,   0, 120,   1,   0,   0,
-	 12,   0,   0,   0,   5,   0,
-	  0,   0,   1,   0,   4,   0,
-	  0,   0,   4,   0, 156,   1,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	 49,   1,   0,   0,  40,   1,
-	  0,   0,   0,   0,   0,   0,
-	  4,   0,   0,   0,   2,   0,
-	  0,   0,  68,   1,   0,   0,
-	  0,   0,   0,   0, 255, 255,
-	255, 255,   0,   0,   0,   0,
-	255, 255, 255, 255,   0,   0,
-	  0,   0,  40,   1,   0,   0,
-	  0,   0,   0,   0,  16,   0,
-	  0,   0,   2,   0,   0,   0,
-	204,   1,   0,   0,   0,   0,
-	  0,   0, 255, 255, 255, 255,
-	  0,   0,   0,   0, 255, 255,
-	255, 255,   0,   0,   0,   0,
-	 77, 105,  99, 114, 111, 115,
-	111, 102, 116,  32,  40,  82,
-	 41,  32,  72,  76,  83,  76,
-	 32,  83, 104,  97, 100, 101,
-	114,  32,  67, 111, 109, 112,
-	105, 108, 101, 114,  32,  57,
-	 46,  50,  57,  46,  57,  53,
-	 50,  46,  51,  49,  49,  49,
-	  0, 171, 171, 171,  73,  83,
-	 71,  78,   8,   0,   0,   0,
-	  0,   0,   0,   0,   8,   0,
-	  0,   0,  79,  83,  71,  78,
-	  8,   0,   0,   0,   0,   0,
-	  0,   0,   8,   0,   0,   0,
-	 83,  72,  69,  88,  20,   2,
-	  0,   0,  80,   0,   5,   0,
-	133,   0,   0,   0, 106,   8,
-	  0,   1, 162,   0,   0,   4,
-	  0, 112,  16,   0,   0,   0,
-	  0,   0,  16,   0,   0,   0,
-	162,   0,   0,   4,   0, 112,
-	 16,   0,   1,   0,   0,   0,
-	  4,   0,   0,   0, 158,   0,
-	  0,   4,   0, 224,  17,   0,
-	  0,   0,   0,   0,  16,   0,
-	  0,   0,  95,   0,   0,   2,
-	 18,   0,   2,   0, 104,   0,
-	  0,   2,   2,   0,   0,   0,
-	155,   0,   0,   4,  64,   0,
-	  0,   0,   1,   0,   0,   0,
-	  1,   0,   0,   0, 167,   0,
-	  0, 138,   2, 131,   0, 128,
-	131, 153,  25,   0, 114,   0,
-	 16,   0,   0,   0,   0,   0,
-	 10,   0,   2,   0,   1,  64,
-	  0,   0,   0,   0,   0,   0,
-	 70, 114,  16,   0,   0,   0,
-	  0,   0, 167,   0,   0, 139,
-	  2,  35,   0, 128, 131, 153,
-	 25,   0,  18,   0,  16,   0,
-	  1,   0,   0,   0,   1,  64,
-	  0,   0,   0,   0,   0,   0,
-	  1,  64,   0,   0,   0,   0,
-	  0,   0,   6, 112,  16,   0,
-	  1,   0,   0,   0, 167,   0,
-	  0, 139,   2,  35,   0, 128,
-	131, 153,  25,   0,  34,   0,
-	 16,   0,   1,   0,   0,   0,
-	  1,  64,   0,   0,   1,   0,
-	  0,   0,   1,  64,   0,   0,
-	  0,   0,   0,   0,   6, 112,
-	 16,   0,   1,   0,   0,   0,
-	167,   0,   0, 139,   2,  35,
-	  0, 128, 131, 153,  25,   0,
-	 66,   0,  16,   0,   1,   0,
-	  0,   0,   1,  64,   0,   0,
-	  2,   0,   0,   0,   1,  64,
-	  0,   0,   0,   0,   0,   0,
-	  6, 112,  16,   0,   1,   0,
-	  0,   0,   0,   0,   0,   8,
-	114,   0,  16,   0,   0,   0,
-	  0,   0,  70,   2,  16,   0,
-	  0,   0,   0,   0,  70,   2,
-	 16, 128,  65,   0,   0,   0,
-	  1,   0,   0,   0,  16,   0,
-	  0,   7,  18,   0,  16,   0,
-	  0,   0,   0,   0,  70,   2,
-	 16,   0,   0,   0,   0,   0,
-	 70,   2,  16,   0,   0,   0,
-	  0,   0,  75,   0,   0,   5,
-	 18,   0,  16,   0,   0,   0,
-	  0,   0,  10,   0,  16,   0,
-	  0,   0,   0,   0, 167,   0,
-	  0, 139,   2,  35,   0, 128,
-	131, 153,  25,   0,  34,   0,
-	 16,   0,   0,   0,   0,   0,
-	  1,  64,   0,   0,   3,   0,
-	  0,   0,   1,  64,   0,   0,
-	  0,   0,   0,   0,   6, 112,
-	 16,   0,   1,   0,   0,   0,
-	 49,   0,   0,   7,  18,   0,
-	 16,   0,   0,   0,   0,   0,
-	 26,   0,  16,   0,   0,   0,
-	  0,   0,  10,   0,  16,   0,
-	  0,   0,   0,   0,  31,   0,
-	  4,   3,  10,   0,  16,   0,
-	  0,   0,   0,   0, 167,   0,
-	  0, 138,   2, 131,   0, 128,
-	131, 153,  25,   0, 242,   0,
-	 16,   0,   0,   0,   0,   0,
-	 10,   0,   2,   0,   1,  64,
-	  0,   0,   0,   0,   0,   0,
-	 70, 126,  16,   0,   0,   0,
-	  0,   0, 178,   0,   0,   5,
-	 18,   0,  16,   0,   1,   0,
-	  0,   0,   0, 224,  17,   0,
-	  0,   0,   0,   0, 168,   0,
-	  0,   9, 242, 224,  17,   0,
-	  0,   0,   0,   0,  10,   0,
-	 16,   0,   1,   0,   0,   0,
-	  1,  64,   0,   0,   0,   0,
-	  0,   0,  70,  14,  16,   0,
-	  0,   0,   0,   0,  21,   0,
-	  0,   1,  62,   0,   0,   1,
-	 83,  84,  65,  84, 148,   0,
-	  0,   0,  15,   0,   0,   0,
-	  2,   0,   0,   0,   0,   0,
-	  0,   0,   1,   0,   0,   0,
-	  4,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  1,   0,   0,   0,   1,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  2,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0,
-	  0,   0,   0,   0,   0,   0
-};
+		//requestToDelete = true;
+	}
+}
 
 static string NextTextToSend = "";
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetNextTextLengthFromDLL()
@@ -1067,7 +258,6 @@ static bool DLLWasLoadedCorrectly = false;
 static std::string resultString;
 static std::string projectPath = "";
 
-std::vector<pointCloud*> pointClouds;
 void runMyComputeShader();
 
 pointCloud* getPointCloud(std::string ID)
@@ -1183,7 +373,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 
 	if (FloatsToSync.size() == 0)
 	{
-		//FloatsToSync["FirstShaderFloat"] = 0.0f;
+		FloatsToSync["FirstShaderFloat"] = 0.0f;
 	}
 
 	/*UNDO_MANAGER.clear();
@@ -1598,99 +788,12 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 	}
 	timeLastTimeCall = GetTickCount();
 	
-	//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
+	DeleteRequest NewRequest;
+	NewRequest.Center = glm::vec3(center[0], center[1], center[2]);
+	NewRequest.Size = size;
+	DeleteRequests.push_back(NewRequest);
 
-	int pointWasDeleted = 0;
-	//bool anyPointWasDeleted = false;
-	//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
-#ifdef USE_COMPUTE_SHADER
-
-	deletionSpherePosition = glm::vec3(center[0], center[1], center[2]);
-	deletionSphereSize = size / 2.0f;
-	
-	for (size_t i = 0; i < pointClouds.size(); i++)
-	{
-		if (!pointClouds[i]->wasFullyLoaded)
-			continue;
-
-		glm::vec3 localPosition = glm::inverse(glm::transpose(pointClouds[i]->worldMatrix)) * glm::vec4(deletionSpherePosition, 1.0f);
-		float extractedScale = glm::length(glm::transpose(pointClouds[i]->worldMatrix)[0]);
-		size /= extractedScale;
-
-		if (pointClouds[i]->getSearchOctree()->isInOctreeBound(localPosition, size))
-		{
-			//pointClouds[i]->getSearchOctree()->deleteObjects(localPosition, size);
-			//pointClouds[i]->deletionOccuredThisFrame = true;
-
-			runMyDeleteComputeShader(pointClouds[i]);
-
-			UNDO_MANAGER.addAction(new deleteAction(localPosition, size, pointClouds[i]));
-			//anyPointWasDeleted = true;
-		}
-
-		/*if (pointClouds[i]->getSearchOctree()->pointsToDelete.size() > 0)
-		{
-			UNDO_MANAGER.addAction(new deleteAction(localPosition, size, pointClouds[i]));
-
-			LOG.Add("==============================================================", "deleteEvents");
-			LOG.Add("Brush location: ", localPosition, "deleteEvents");
-			LOG.Add("Brush size: " + std::to_string(size), "deleteEvents");
-			LOG.Add("pointsToDelete size: " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
-
-			anyPointWasDeleted = true;
-		}*/
-	}
-#else
-	for (size_t i = 0; i < pointClouds.size(); i++)
-	{
-		if (!pointClouds[i]->wasFullyLoaded)
-			continue;
-
-		glm::vec3 localPosition = glm::inverse(glm::transpose(pointClouds[i]->worldMatrix)) * glm::vec4(centerOfBrush, 1.0f);
-		float extractedScale = glm::length(glm::transpose(pointClouds[i]->worldMatrix)[0]);
-		size /= extractedScale;
-
-		if (pointClouds[i]->getSearchOctree()->isInOctreeBound(localPosition, size))
-		{
-			//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
-			pointClouds[i]->getSearchOctree()->deleteObjects(localPosition, size);
-		}
-
-		if (pointClouds[i]->getSearchOctree()->pointsToDelete.size() > 0)
-		{
-			//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
-			UNDO_MANAGER.addAction(new deleteAction(localPosition, size, pointClouds[i]));
-			//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
-
-			LOG.Add("==============================================================", "deleteEvents");
-			LOG.Add("Brush location: " + vec3ToString(localPosition), "deleteEvents");
-			LOG.Add("Brush size: " + std::to_string(size), "deleteEvents");
-			LOG.Add("pointsToDelete size: " + std::to_string(pointClouds[i]->getSearchOctree()->pointsToDelete.size()), "deleteEvents");
-
-			octree* currentOctree = pointClouds[i]->getSearchOctree();
-			for (size_t j = 0; j < currentOctree->pointsToDelete.size(); j++)
-			{
-				if (pointClouds[i]->vertexInfo[currentOctree->pointsToDelete[j]].position[0] != DELETED_POINTS_COORDINATE &&
-					pointClouds[i]->vertexInfo[currentOctree->pointsToDelete[j]].position[1] != DELETED_POINTS_COORDINATE &&
-					pointClouds[i]->vertexInfo[currentOctree->pointsToDelete[j]].position[2] != DELETED_POINTS_COORDINATE)
-				{
-					pointWasDeleted++;
-					//break;
-				}
-			}
-
-			ID3D11DeviceContext* ctx = NULL;
-			GPU.getDevice()->GetImmediateContext(&ctx);
-			onDrawDeletePointsinGPUMem(pointClouds[i], ctx);
-			ctx->Release();
-		}
-	}
-
-#endif // USE_COMPUTE_SHADER
-
-	//requestToDelete = true;
-	//LOG.Add("line: " + std::to_string(__LINE__), "linesHited");
-	return pointWasDeleted;
+	return 0/*pointWasDeleted*/;
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestOctreeDebugMaxNodeDepthFromUnity()
@@ -1733,14 +836,15 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestPointCloudAdju
 	if (currentPointCloud->NumPy == nullptr)
 	{
 		adjustment[5] = currentPointCloud->Metrics.RawMin.x;
-		adjustment[6] = currentPointCloud->Metrics.RawMin.y;
 		adjustment[7] = currentPointCloud->Metrics.RawMin.z;
 
 		adjustment[5] *= currentPointCloud->loadedFrom->header.x_scale_factor;
 	    adjustment[5] += currentPointCloud->loadedFrom->header.x_offset;
 
-		adjustment[6] *= currentPointCloud->loadedFrom->header.z_scale_factor;
-		adjustment[6] += currentPointCloud->loadedFrom->header.z_offset;
+		adjustment[6] = currentPointCloud->Metrics.Min.y;
+		//adjustment[6] = currentPointCloud->Metrics.RawMin.y;
+		//adjustment[6] *= currentPointCloud->loadedFrom->header.z_scale_factor;
+		//adjustment[6] += currentPointCloud->loadedFrom->header.z_offset;
 
 		adjustment[7] *= currentPointCloud->loadedFrom->header.y_scale_factor;
 		adjustment[7] += currentPointCloud->loadedFrom->header.y_offset;
@@ -1752,9 +856,10 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestPointCloudAdju
 		adjustment[8] *= currentPointCloud->loadedFrom->header.x_scale_factor;
 		adjustment[8] += currentPointCloud->loadedFrom->header.x_offset;
 
-		adjustment[9] = currentPointCloud->Metrics.RawMax.y;
-		adjustment[9] *= currentPointCloud->loadedFrom->header.z_scale_factor;
-		adjustment[9] += currentPointCloud->loadedFrom->header.z_offset;
+		adjustment[9] = currentPointCloud->Metrics.Max.y;
+		//adjustment[9] = currentPointCloud->Metrics.RawMax.y;
+		//adjustment[9] *= currentPointCloud->loadedFrom->header.z_scale_factor;
+		//adjustment[9] += currentPointCloud->loadedFrom->header.z_offset;
 
 		adjustment[10] = currentPointCloud->Metrics.RawMax.z;
 		adjustment[10] *= currentPointCloud->loadedFrom->header.y_scale_factor;
@@ -1842,7 +947,7 @@ cbuffer MyCB : register(b0)
 	float4 additionalFloat;
 }
 
-void VS(float3 pos : POSITION, float4 color : COLOR, out float4 FinalColor : COLOR, out float4 FinalPosition : SV_Position)
+void VS(float3 pos : POSITION, float4 color : COLOR, uint classification : CLASSIFICATION, out float4 FinalColor : COLOR, out float4 FinalPosition : SV_Position)
 {
 	FinalPosition = mul(finalMatrix, float4(pos, 1));
 	FinalColor = float4(0, 1, 0, 1);
@@ -1859,6 +964,19 @@ void VS(float3 pos : POSITION, float4 color : COLOR, out float4 FinalColor : COL
 
 	//color.r += additionalFloat.x;
 	//color.r += 0.5;
+
+	if (additionalFloat.x == 1)
+	{
+		if (classification == 0)
+				color.r += 0.5;
+	}
+
+	//if (classification == 1)
+	//	color.g += 0.5;
+
+	//if (classification == 155)
+	//	color.b += 0.5;
+
 	FinalColor = color;
 }
 
@@ -1872,7 +990,7 @@ struct MyConstBuffer
 	glm::vec4 additionalFloat;
 };
 
-static MyConstBuffer* CostBufferData = new MyConstBuffer();
+static MyConstBuffer* ConstBufferData = new MyConstBuffer();
 
 static void createConstantBuffer(ID3D11Buffer** Buffer)
 {
@@ -1946,9 +1064,10 @@ static void CreateResources()
 		{
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+			{ "CLASSIFICATION", 0,  DXGI_FORMAT_R8_UINT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
-		GPU.getDevice()->CreateInputLayout(s_DX11InputElementDesc, 2, kVertexShaderCode, sizeof(kVertexShaderCode), &m_InputLayout);
-		//GPU.getDevice()->CreateInputLayout(s_DX11InputElementDesc, 2, pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), &m_InputLayout);
+		//GPU.getDevice()->CreateInputLayout(s_DX11InputElementDesc, 3, kVertexShaderCode, sizeof(kVertexShaderCode), &m_InputLayout);
+		GPU.getDevice()->CreateInputLayout(s_DX11InputElementDesc, 3, pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), &m_InputLayout);
 	}
 
 	// render states
@@ -2106,12 +1225,12 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 #else
 	if (internalScreenIndex != -1 || viewProjectionMatricesBuffers.find(internalScreenIndex) == viewProjectionMatricesBuffers.end())
 	{
-		CostBufferData->finalMat = finalMatrix;
-		CostBufferData->glmViewMatrix = glmViewMatrix;
-		CostBufferData->worldMatrix = glmWorldMatrix;
-		CostBufferData->additionalFloat.x = FloatsToSync["FirstShaderFloat"];
+		ConstBufferData->finalMat = finalMatrix;
+		ConstBufferData->glmViewMatrix = glmViewMatrix;
+		ConstBufferData->worldMatrix = glmWorldMatrix;
+		ConstBufferData->additionalFloat.x = FloatsToSync["FirstShaderFloat"];
 
-		ctx->UpdateSubresource(m_CB, 0, NULL, CostBufferData, 0, 0);
+		ctx->UpdateSubresource(m_CB, 0, NULL, ConstBufferData, 0, 0);
 
 		//ctx->UpdateSubresource(m_CB, 0, NULL, glm::value_ptr(finalMatrix), 64, 64);
 		//ctx->UpdateSubresource(m_CB, 1, NULL, glm::value_ptr(finalMatrix), 64, 64);
@@ -2158,18 +1277,18 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		//desc.BindFlags = D3D11_BIND_VERTEX_BUFFER | D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
 		desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
 		desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-		desc.ByteWidth = sizeof(MeshVertex) * pointCloudToRender->vertexInfo.size();
-		desc.StructureByteStride = sizeof(MeshVertex);
+		desc.ByteWidth = sizeof(VertexData) * pointCloudToRender->vertexInfo.size();
+		desc.StructureByteStride = sizeof(VertexData);
 #else
 		desc.Usage = D3D11_USAGE_DEFAULT;
-		desc.ByteWidth = UINT(pointCloudToRender->vertexInfo.size() * 16);
+		desc.ByteWidth = UINT(pointCloudToRender->vertexInfo.size() * kVertexSize);
 		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 #endif
 		GPU.getDevice()->CreateBuffer(&desc, NULL, &pointCloudToRender->mainVB);
 
 #ifndef USE_COMPUTE_SHADER
 		desc.Usage = D3D11_USAGE_DEFAULT;
-		desc.ByteWidth = UINT(pointCloudToRender->vertexInfo.size() * 16);
+		desc.ByteWidth = UINT(pointCloudToRender->vertexInfo.size() * kVertexSize);
 		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		GPU.getDevice()->CreateBuffer(&desc, NULL, &pointCloudToRender->intermediateVB);
 
@@ -2400,6 +1519,8 @@ static void Render()
 		localHighlightDeletedPoints = true;
 	}
 	
+	WorkOnDeleteRequests();
+
 	for (size_t i = 0; i < pointClouds.size(); i++)
 	{
 		DrawPointCloud(pointClouds[i], localHighlightDeletedPoints);
@@ -3160,11 +2281,11 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //
 //	if (inputPoints_CS_SRV == nullptr)
 //	{
-//		allPointsData_CS = new MeshVertex[pointClouds[0]->vertexInfo.size()];
+//		allPointsData_CS = new VertexData[pointClouds[0]->vertexInfo.size()];
 //#ifdef FLOAT_TEST
 //		InputData_CS = new float[24];
 //#else
-//		InputData_CS = new MeshVertex[24];
+//		InputData_CS = new VertexData[24];
 //#endif // FLOAT_TEST
 //
 //		for (int i = 0; i < pointClouds[0]->vertexInfo.size(); ++i)
@@ -3174,9 +2295,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //
 //		D3D11_BUFFER_DESC descBuffer = {};
 //		descBuffer.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
-//		descBuffer.ByteWidth = sizeof(MeshVertex) * pointClouds[0]->vertexInfo.size();
+//		descBuffer.ByteWidth = sizeof(VertexData) * pointClouds[0]->vertexInfo.size();
 //		descBuffer.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-//		descBuffer.StructureByteStride = sizeof(MeshVertex);
+//		descBuffer.StructureByteStride = sizeof(VertexData);
 //		D3D11_SUBRESOURCE_DATA InitData;
 //		InitData.pSysMem = &allPointsData_CS[0];
 //		auto result = GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &allPointsDataBuffer_CS);
@@ -3190,14 +2311,14 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //		descBuffer.ByteWidth = sizeof(float) * 24;
 //		descBuffer.StructureByteStride = sizeof(float);
 //#else
-//		descBuffer.ByteWidth = sizeof(MeshVertex) * 24;
+//		descBuffer.ByteWidth = sizeof(VertexData) * 24;
 //#endif // FLOAT_TEST
 //
 //		result = GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &InputDataBuffer_CS);
 //		//LOG.Add("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf1);: " + std::system_category().message(result), "computeShader");
 //		//LOG.Add("GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &g_pBuf1);: " + std::system_category().message(GPU.getDevice()->GetDeviceRemovedReason()), "computeShader");
-//		descBuffer.ByteWidth = sizeof(MeshVertex) * pointClouds[0]->vertexInfo.size();
-//		descBuffer.StructureByteStride = sizeof(MeshVertex);
+//		descBuffer.ByteWidth = sizeof(VertexData) * pointClouds[0]->vertexInfo.size();
+//		descBuffer.StructureByteStride = sizeof(VertexData);
 //		result = GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &resultBuffer_CS);
 //		result = GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &resultBufferSecond_CS);
 //		currentBuffer_CS = &resultBuffer_CS;
@@ -3252,7 +2373,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //#ifdef FLOAT_TEST
 //	ctx->UpdateSubresource(InputDataBuffer_CS, 0, nullptr, InputData_CS, sizeof(float) * 24, sizeof(float) * 24);
 //#else
-//	ctx->UpdateSubresource(InputDataBuffer_CS, 0, nullptr, InputData_CS, sizeof(MeshVertex) * 24, sizeof(MeshVertex) * 24);
+//	ctx->UpdateSubresource(InputDataBuffer_CS, 0, nullptr, InputData_CS, sizeof(VertexData) * 24, sizeof(VertexData) * 24);
 //#endif // FLOAT_TEST
 //
 //	ID3D11ShaderResourceView* aRViews[2] = { inputPoints_CS_SRV, InputData_CS_SRV };
@@ -3262,16 +2383,16 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDeletionSphereP
 //	{
 //		ID3D11Buffer* debugbuf = CreateAndCopyToDebugBuf(GPU.getDevice(), ctx, resultBuffer_CS);
 //		D3D11_MAPPED_SUBRESOURCE MappedResource;
-//		MeshVertex* p;
+//		VertexData* p;
 //		ctx->Map(debugbuf, 0, D3D11_MAP_READ, 0, &MappedResource);
 //
 //		// Set a break point here and put down the expression "p, 1024" in your watch window to see what has been written out by our CS
 //		// This is also a common trick to debug CS programs.
-//		p = (MeshVertex*)MappedResource.pData;
+//		p = (VertexData*)MappedResource.pData;
 //
-//		/*LOG.Add("resultBufferSize: " + std::to_string(MappedResource.RowPitch / sizeof(MeshVertex)), "computeShader");*/
+//		/*LOG.Add("resultBufferSize: " + std::to_string(MappedResource.RowPitch / sizeof(VertexData)), "computeShader");*/
 //
-//		//for (int i = 0; i < MappedResource.RowPitch / sizeof(MeshVertex); i++)
+//		//for (int i = 0; i < MappedResource.RowPitch / sizeof(VertexData); i++)
 //		//{
 //		//	LOG.Add("result[" + std::to_string(i) + "] - X: " + std::to_string(p[i].position.x) + " Y : " + std::to_string(p[i].position.y) + " Z : " + std::to_string(p[i].position.z), "computeShader");
 //		//	//LOG.Add("result[" + std::to_string(i) + "] - R: " + std::to_string(p[i].color[0]) + " G : " + std::to_string(p[i].color[1]) + " B : " + std::to_string(p[i].color[2]), "computeShader");
@@ -3359,7 +2480,7 @@ void runMyDeleteComputeShader(pointCloud* pointCloud)
 		LOG.Add("pointCloud->InputDataBuffer_CS result : " + std::to_string (result), "deleteEvents");
 		CreateBufferSRV(GPU.getDevice(), pointCloud->InputDataBuffer_CS, &pointCloud->InputData_CS_SRV);
 
-		/*allPointsData_CS = new MeshVertex[pointCloud->vertexInfo.size()];
+		/*allPointsData_CS = new VertexData[pointCloud->vertexInfo.size()];
 		InputData_CS = new float[24];
 
 		for (int i = 0; i < pointCloud->vertexInfo.size(); ++i)
@@ -3369,9 +2490,9 @@ void runMyDeleteComputeShader(pointCloud* pointCloud)
 
 		D3D11_BUFFER_DESC descBuffer = {};
 		descBuffer.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
-		descBuffer.ByteWidth = sizeof(MeshVertex) * pointCloud->vertexInfo.size();
+		descBuffer.ByteWidth = sizeof(VertexData) * pointCloud->vertexInfo.size();
 		descBuffer.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-		descBuffer.StructureByteStride = sizeof(MeshVertex);
+		descBuffer.StructureByteStride = sizeof(VertexData);
 		D3D11_SUBRESOURCE_DATA InitData;
 		InitData.pSysMem = &allPointsData_CS[0];
 		auto result = GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &pointCloud->allPointsDataBuffer_CS);
@@ -3381,8 +2502,8 @@ void runMyDeleteComputeShader(pointCloud* pointCloud)
 		descBuffer.StructureByteStride = sizeof(float);
 
 		result = GPU.getDevice()->CreateBuffer(&descBuffer, &InitData, &pointCloud->InputDataBuffer_CS);
-		descBuffer.ByteWidth = sizeof(MeshVertex) * pointCloud->vertexInfo.size();
-		descBuffer.StructureByteStride = sizeof(MeshVertex);
+		descBuffer.ByteWidth = sizeof(VertexData) * pointCloud->vertexInfo.size();
+		descBuffer.StructureByteStride = sizeof(VertexData);
 		result = GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &pointCloud->resultBuffer_CS);
 		result = GPU.getDevice()->CreateBuffer(&descBuffer, nullptr, &pointCloud->resultBufferSecond_CS);
 		pointCloud->currentBuffer_CS = &pointCloud->resultBuffer_CS;

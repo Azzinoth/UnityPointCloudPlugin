@@ -29,7 +29,7 @@ struct LAZFileInfo
 struct LODInformation
 {
 	ID3D11Buffer* VB;
-	std::vector<MeshVertex> vertexInfo;
+	std::vector<VertexData> vertexInfo;
 };
 
 struct LODSetting
@@ -109,11 +109,11 @@ public:
 	std::string ID = "";
 
 	glm::mat4 worldMatrix;
-	std::vector<MeshVertex> vertexInfo;
+	std::vector<VertexData> vertexInfo;
 	std::vector<float> vertexIntensity;
 
 	std::vector<int> lastHighlightedPoints;
-	std::vector<MeshVertex> originalData;
+	std::vector<VertexData> originalData;
 	int highlightStep = 0;
 
 #ifdef LOD_SYSTEM

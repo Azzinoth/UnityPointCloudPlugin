@@ -29,7 +29,7 @@ void undoManager::undo(int actionsToUndo)
 		return;
 
 	// Take original data.
-	std::vector<MeshVertex> copyOfOriginalData = currentPointCloud->originalData;
+	std::vector<VertexData> copyOfOriginalData = currentPointCloud->originalData;
 
 	for (size_t i = undoActions.size() - 1; i >= 0; i--)
 	{
@@ -72,7 +72,7 @@ void undoManager::undo(int actionsToUndo)
 	undoActionWasApplied = true;
 }
 
-void undoManager::undoInternal(action* actionToUndo, std::vector<MeshVertex>& originalData)
+void undoManager::undoInternal(action* actionToUndo, std::vector<VertexData>& originalData)
 {
 	pointCloud* currentPointCloud = actionToUndo->affectedPointCloud;
 

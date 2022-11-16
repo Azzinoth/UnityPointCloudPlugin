@@ -52,7 +52,7 @@ public:
 private:
 	SINGLETON_PRIVATE_PART(undoManager)
 
-	void undoInternal(action* actionToUndo, std::vector<MeshVertex>& originalData);
+	void undoInternal(action* actionToUndo, std::vector<VertexData>& originalData);
 	std::vector<action*> undoActions;
 };
 
