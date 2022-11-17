@@ -945,6 +945,8 @@ cbuffer MyCB : register(b0)
 	float4x4 glmViewMatrix;
 	float4x4 worldMatrix;
 	float4 additionalFloat;
+
+	float4 ClassToColor[256];
 }
 
 void VS(float3 pos : POSITION, float4 color : COLOR, uint classification : CLASSIFICATION, out float4 FinalColor : COLOR, out float4 FinalPosition : SV_Position)
@@ -967,8 +969,12 @@ void VS(float3 pos : POSITION, float4 color : COLOR, uint classification : CLASS
 
 	if (additionalFloat.x == 1)
 	{
-		if (classification == 0)
-				color.r += 0.5;
+		color.r = ClassToColor[classification].y;
+		color.g = ClassToColor[classification].z;
+		color.b = ClassToColor[classification].w;
+
+		//if (classification == 0)
+		//		color.r += 0.5;
 	}
 
 	//if (classification == 1)
@@ -988,6 +994,8 @@ struct MyConstBuffer
 	glm::mat4 glmViewMatrix;
 	glm::mat4 worldMatrix;
 	glm::vec4 additionalFloat;
+
+	glm::vec4 ClassToColor[256];
 };
 
 static MyConstBuffer* ConstBufferData = new MyConstBuffer();
@@ -1002,7 +1010,7 @@ static void createConstantBuffer(ID3D11Buffer** Buffer)
 #ifdef USE_QUADS_NOT_POINTS
 	desc.ByteWidth = 64 * 3;
 #else
-	desc.ByteWidth = 64 * 3 + 16; // You must set the ByteWidth value of D3D11_BUFFER_DESC in multiples of 16.
+	desc.ByteWidth = sizeof(MyConstBuffer); // You must set the ByteWidth value of D3D11_BUFFER_DESC in multiples of 16.
 #endif
 	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	desc.CPUAccessFlags = 0;
@@ -1229,6 +1237,21 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		ConstBufferData->glmViewMatrix = glmViewMatrix;
 		ConstBufferData->worldMatrix = glmWorldMatrix;
 		ConstBufferData->additionalFloat.x = FloatsToSync["FirstShaderFloat"];
+
+		ConstBufferData->ClassToColor[0].x = 0.0f;
+		ConstBufferData->ClassToColor[0].y = 0.1f;
+		ConstBufferData->ClassToColor[0].z = 0.1f;
+		ConstBufferData->ClassToColor[0].w = 1.0f;
+
+		ConstBufferData->ClassToColor[1].x = 1.0f;
+		ConstBufferData->ClassToColor[1].y = 0.1f;
+		ConstBufferData->ClassToColor[1].z = 1.0f;
+		ConstBufferData->ClassToColor[1].w = 0.1f;
+
+		ConstBufferData->ClassToColor[255].x = 255.0f;
+		ConstBufferData->ClassToColor[255].y = 0.9f;
+		ConstBufferData->ClassToColor[255].z = 0.0f;
+		ConstBufferData->ClassToColor[255].w = 0.9f;
 
 		ctx->UpdateSubresource(m_CB, 0, NULL, ConstBufferData, 0, 0);
 
