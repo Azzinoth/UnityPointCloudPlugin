@@ -1,4 +1,4 @@
-#include "pch.h"
+#include "APIFunctionsTools.h"
 
 using namespace FocalEngine;
 
@@ -21,7 +21,7 @@ std::string getVersion()
 	return result;
 }
 
-static std::string currentVersion = "version 2022.11.17.20448";
+static std::string currentVersion = "version 2022.11.16.17121";
 
 static ID3D11Buffer* m_CB = nullptr;
 static ID3D11VertexShader* m_VertexShader;
@@ -101,7 +101,7 @@ static float deletionSphereSize = 0.0f;
 
 std::vector<pointCloud*> pointClouds;
 
-void WorkOnRequests()
+void WorkOnDeleteRequests()
 {
 	std::vector<ModificationRequest> LocalCopy = ModificationRequests;
 	ModificationRequests.clear();
@@ -158,47 +158,33 @@ void WorkOnRequests()
 
 			if (pointClouds[j]->getSearchOctree()->isInOctreeBound(localPosition, LocalCopy[i].Size))
 			{
-				pointClouds[j]->getSearchOctree()->searchForObjects(localPosition, LocalCopy[i].Size, pointClouds[j]->getSearchOctree()->PointnsInSphere);
+				pointClouds[j]->getSearchOctree()->deleteObjects(localPosition, LocalCopy[i].Size);
 			}
 
 			if (pointClouds[j]->getSearchOctree()->PointnsInSphere.size() > 0)
 			{
-				if (LocalCopy[i].TypeOfModification = 0)
-				{
-					UNDO_MANAGER.addAction(new deleteAction(localPosition, LocalCopy[i].Size, pointClouds[j]));
+				UNDO_MANAGER.addAction(new deleteAction(localPosition, LocalCopy[i].Size, pointClouds[j]));
 
-					LOG.Add("==============================================================", "deleteEvents");
-					LOG.Add("Brush location: " + vec3ToString(localPosition), "deleteEvents");
-					LOG.Add("Brush size: " + std::to_string(LocalCopy[i].Size), "deleteEvents");
-					LOG.Add("PointnsInSphere size: " + std::to_string(pointClouds[j]->getSearchOctree()->PointnsInSphere.size()), "deleteEvents");
+				LOG.Add("==============================================================", "deleteEvents");
+				LOG.Add("Brush location: " + vec3ToString(localPosition), "deleteEvents");
+				LOG.Add("Brush size: " + std::to_string(LocalCopy[i].Size), "deleteEvents");
+				LOG.Add("PointnsInSphere size: " + std::to_string(pointClouds[j]->getSearchOctree()->PointnsInSphere.size()), "deleteEvents");
 
-					octree* currentOctree = pointClouds[j]->getSearchOctree();
-					for (size_t j = 0; j < currentOctree->PointnsInSphere.size(); j++)
-					{
-						if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].position[0] != DELETED_POINTS_COORDINATE &&
-							pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].position[1] != DELETED_POINTS_COORDINATE &&
-							pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].position[2] != DELETED_POINTS_COORDINATE)
-						{
-							pointWasDeleted++;
-							//break;
-						}
-					}
-				}
-				else if (LocalCopy[i].TypeOfModification = 1)
+				octree* currentOctree = pointClouds[j]->getSearchOctree();
+				for (size_t j = 0; j < currentOctree->PointnsInSphere.size(); j++)
 				{
-					octree* currentOctree = pointClouds[j]->getSearchOctree();
-					for (size_t j = 0; j < currentOctree->PointnsInSphere.size(); j++)
+					if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].position[0] != DELETED_POINTS_COORDINATE &&
+						pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].position[1] != DELETED_POINTS_COORDINATE &&
+						pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].position[2] != DELETED_POINTS_COORDINATE)
 					{
-						if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].classification != LocalCopy[i].AdditionalData)
-						{
-							pointWasDeleted++;
-						}
+						pointWasDeleted++;
+						//break;
 					}
 				}
 
 				ID3D11DeviceContext* ctx = NULL;
 				GPU.getDevice()->GetImmediateContext(&ctx);
-				ApplyPoindModificationRequest(pointClouds[j], ctx, LocalCopy[i]);
+				onDrawDeletePointsinGPUMem(pointClouds[j], ctx);
 				ctx->Release();
 			}
 		}
@@ -209,23 +195,8 @@ void WorkOnRequests()
 	}
 }
 
-static string NextTextToSend = "";
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetNextTextLengthFromDLL()
-{
-	return int(NextTextToSend.size());
-}
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API FillTextFromDLL(int* Data)
-{
-	//LOG.Add(std::string("NextTextToSend.size(): ") + std::to_string(NextTextToSend.size()), "GetTextFromDLL");
 
-	for (size_t i = 0; i < NextTextToSend.size(); i++)
-	{
-		Data[i] = int(NextTextToSend[i]);
-	}
-
-	NextTextToSend = "";
-}
 
 std::unordered_map<std::string, float> FloatsToSync;
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetFloatsToSyncCount()
@@ -387,7 +358,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 
 	if (FloatsToSync.size() == 0)
 	{
-		FloatsToSync["VisualizeClassification"] = 0.0f;
+		FloatsToSync["FirstShaderFloat"] = 0.0f;
 	}
 
 	/*UNDO_MANAGER.clear();
@@ -628,6 +599,12 @@ void highlightDeletedPointsFunction(pointCloud* pointCloud, ID3D11DeviceContext*
 
 	if (box.right / kVertexSize > pointCloud->vertexInfo.size())
 		return;
+
+	/*LOG.Add("min: " + std::to_string(minIndex), "11");
+	LOG.Add("dbox.right: " + std::to_string(dbox.right), "11");
+
+	LOG.Add("box.left: " + std::to_string(box.left), "11");
+	LOG.Add("box.right: " + std::to_string(box.right), "11");*/
 	
 	ctx->UpdateSubresource(pointCloud->intermediateVB, 0, &dbox, pointCloud->vertexInfo.data() + minIndex, pointCloud->getPointCount() * kVertexSize, pointCloud->getPointCount() * kVertexSize);
 	ctx->CopySubresourceRegion(pointCloud->mainVB, 0, box.left, 0, 0, pointCloud->intermediateVB, 0, &dbox);
@@ -636,136 +613,128 @@ void highlightDeletedPointsFunction(pointCloud* pointCloud, ID3D11DeviceContext*
 static DWORD timeLastTimeCall = GetTickCount();
 static int iteration = 0;
 
-void UpdatePointsInGPUMem(pointCloud* pointCloud, std::vector<int> &PointnsIndexes, ID3D11DeviceContext* ctx)
+static int lastDeletedMinIndex = -1;
+static int lastDeletedMaxIndex = -1;
+static int lastPointsCount = -1;
+void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx)
 {
-	static int LastModifiedMinIndex = -1;
-	static int LastModifiedMaxIndex = -1;
-	static int LastModifiedPointsCount = -1;
+	/*if (GetTickCount() - timeLastTimeCall < 30)
+	{
+		LOG.Add("denial onDrawDeletePointsinGPUMem", "deleteEvents");
+		return;
+	}
+	timeLastTimeCall = GetTickCount();
+
+	bool expected = true;
+	if (!requestToDelete.compare_exchange_strong(expected, false))
+	{
+		LOG.Add("requestToDelete was false in onDrawDeletePointsinGPUMem", "deleteEvents");
+		return;
+	}*/
 
 	int minIndex = INT_MAX;
 	int maxIndex = INT_MIN;
+	int pointCountTemp = int(pointCloud->getSearchOctree()->PointnsInSphere.size());
 
-	D3D11_BOX box{};
-	box.left = 0;
-	box.right = 0 + pointCloud->getPointCount() * kVertexSize;
-	box.top = 0;
-	box.bottom = 1;
-	box.front = 0;
-	box.back = 1;
-
-	LOG.Add("pointCloud->getSearchOctree()->PointnsInSphere.size(): " + std::to_string(PointnsIndexes.size()), "UpdatePointsInGPUMem");
-
-	if (PointnsIndexes.size() != 0)
-		LOG.Add("DrawPointCloud with PointnsInSphere first element: " + std::to_string(PointnsIndexes[0]), "UpdatePointsInGPUMem");
-
-	for (size_t i = 0; i < PointnsIndexes.size(); i++)
+	if (pointCloud->getSearchOctree()->PointnsInSphere.size() != 0 || (minIndex != INT_MAX && maxIndex != INT_MIN))
 	{
-		if (PointnsIndexes[i] > maxIndex)
-			maxIndex = PointnsIndexes[i];
+		D3D11_BOX box{};
+		box.left = 0;
+		box.right = 0 + pointCloud->getPointCount() * kVertexSize;
+		box.top = 0;
+		box.bottom = 1;
+		box.front = 0;
+		box.back = 1;
 
-		if (PointnsIndexes[i] < minIndex)
-			minIndex = PointnsIndexes[i];
-	}
+		LOG.Add("pointCloud->getSearchOctree()->PointnsInSphere.size(): " + std::to_string(pointCloud->getSearchOctree()->PointnsInSphere.size()), "onDrawDeletePointsinGPUMem");
 
-	LOG.Add("maxIndex: " + std::to_string(maxIndex), "UpdatePointsInGPUMem");
-	LOG.Add("minIndex: " + std::to_string(minIndex), "UpdatePointsInGPUMem");
+		if (pointCloud->getSearchOctree()->PointnsInSphere.size() != 0)
+			LOG.Add("DrawPointCloud with PointnsInSphere first element: " + std::to_string(pointCloud->getSearchOctree()->PointnsInSphere[0]), "onDrawDeletePointsinGPUMem");
 
-	if (minIndex == INT_MAX || maxIndex == INT_MIN)
-		return;
-
-	if (minIndex == LastModifiedMinIndex && maxIndex == LastModifiedMaxIndex && PointnsIndexes.size() == LastModifiedPointsCount)
-	{
-		if (UNDO_MANAGER.undoActionWasApplied)
+		for (size_t i = 0; i < pointCloud->getSearchOctree()->PointnsInSphere.size(); i++)
 		{
-			UNDO_MANAGER.undoActionWasApplied = false;
+			if (pointCloud->getSearchOctree()->PointnsInSphere[i] > maxIndex)
+				maxIndex = pointCloud->getSearchOctree()->PointnsInSphere[i];
+
+			if (pointCloud->getSearchOctree()->PointnsInSphere[i] < minIndex)
+				minIndex = pointCloud->getSearchOctree()->PointnsInSphere[i];
+
+			pointCloud->vertexInfo[pointCloud->getSearchOctree()->PointnsInSphere[i]].position[0] = DELETED_POINTS_COORDINATE;
+			pointCloud->vertexInfo[pointCloud->getSearchOctree()->PointnsInSphere[i]].position[1] = DELETED_POINTS_COORDINATE;
+			pointCloud->vertexInfo[pointCloud->getSearchOctree()->PointnsInSphere[i]].position[2] = DELETED_POINTS_COORDINATE;
 		}
-		else
+		pointCloud->getSearchOctree()->PointnsInSphere.clear();
+
+		LOG.Add("maxIndex: " + std::to_string(maxIndex), "onDrawDeletePointsinGPUMem");
+		LOG.Add("minIndex: " + std::to_string(minIndex), "onDrawDeletePointsinGPUMem");
+
+		if (minIndex == INT_MAX || maxIndex == INT_MIN)
+			return;
+
+		if (minIndex == lastDeletedMinIndex && maxIndex == lastDeletedMaxIndex && pointCountTemp == lastPointsCount)
 		{
-			LOG.Add("minIndex == LastModifiedMinIndex && maxIndex == LastModifiedMaxIndex && PointnsIndexes.size() == LastModifiedPointsCount", "UpdatePointsInGPUMem");
+			if (UNDO_MANAGER.undoActionWasApplied)
+			{
+				UNDO_MANAGER.undoActionWasApplied = false;
+			}
+			else
+			{
+				LOG.Add("minIndex == lastDeletedMinIndex && maxIndex == lastDeletedMaxIndex && pointCountTemp == lastPointsCount", "onDrawDeletePointsinGPUMem");
+				return;
+			}
+		}
+		lastDeletedMinIndex = minIndex;
+		lastDeletedMaxIndex = maxIndex;
+		lastPointsCount = pointCountTemp;
+
+		box.left = minIndex * kVertexSize;
+		box.right = minIndex * kVertexSize + (maxIndex - minIndex + 1) * kVertexSize;
+
+		D3D11_BOX dbox{};
+		dbox.left = 0;
+		dbox.right = (maxIndex - minIndex + 1) * kVertexSize;
+		dbox.top = 0;
+		dbox.bottom = 1;
+		dbox.front = 0;
+		dbox.back = 1;
+
+		LOG.Add("min: " + std::to_string(minIndex), "onDrawDeletePointsinGPUMem");
+		LOG.Add("dbox.right: " + std::to_string(dbox.right), "onDrawDeletePointsinGPUMem");
+
+		LOG.Add("box.left: " + std::to_string(box.left), "onDrawDeletePointsinGPUMem");
+		LOG.Add("box.right: " + std::to_string(box.right), "onDrawDeletePointsinGPUMem");
+
+		if (box.right / kVertexSize > pointCloud->vertexInfo.size())
+		{
+			LOG.Add("Error ! box.right / kVertexSize > pointCloudToRender->vertexInfo.size()", "onDrawDeletePointsinGPUMem");
 			return;
 		}
+
+		ctx->UpdateSubresource(pointCloud->intermediateVB, 0, &dbox, pointCloud->vertexInfo.data() + minIndex, pointCloud->getPointCount() * kVertexSize, pointCloud->getPointCount() * kVertexSize);
+		ctx->CopySubresourceRegion(pointCloud->mainVB, 0, box.left, 0, 0, pointCloud->intermediateVB, 0, &dbox);
 	}
-	LastModifiedMinIndex = minIndex;
-	LastModifiedMaxIndex = maxIndex;
-	LastModifiedPointsCount = PointnsIndexes.size();
-
-	box.left = minIndex * kVertexSize;
-	box.right = minIndex * kVertexSize + (maxIndex - minIndex + 1) * kVertexSize;
-
-	D3D11_BOX dbox{};
-	dbox.left = 0;
-	dbox.right = (maxIndex - minIndex + 1) * kVertexSize;
-	dbox.top = 0;
-	dbox.bottom = 1;
-	dbox.front = 0;
-	dbox.back = 1;
-
-	LOG.Add("min: " + std::to_string(minIndex), "UpdatePointsInGPUMem");
-	LOG.Add("dbox.right: " + std::to_string(dbox.right), "UpdatePointsInGPUMem");
-
-	LOG.Add("box.left: " + std::to_string(box.left), "UpdatePointsInGPUMem");
-	LOG.Add("box.right: " + std::to_string(box.right), "UpdatePointsInGPUMem");
-
-	if (box.right / kVertexSize > pointCloud->vertexInfo.size())
-	{
-		LOG.Add("Error ! box.right / kVertexSize > pointCloudToRender->vertexInfo.size()", "UpdatePointsInGPUMem");
-		return;
-	}
-
-	ctx->UpdateSubresource(pointCloud->intermediateVB, 0, &dbox, pointCloud->vertexInfo.data() + minIndex, pointCloud->getPointCount() * kVertexSize, pointCloud->getPointCount() * kVertexSize);
-	ctx->CopySubresourceRegion(pointCloud->mainVB, 0, box.left, 0, 0, pointCloud->intermediateVB, 0, &dbox);
-}
-
-void ApplyPoindModificationRequest(pointCloud* pointCloud, ID3D11DeviceContext* ctx, ModificationRequest Request)
-{
-	auto& PointToModify = pointCloud->getSearchOctree()->PointnsInSphere;
-
-	if (PointToModify.empty())
+	else
 	{
 		if (UNDO_MANAGER.undoActionWasApplied)
+		{
 			UNDO_MANAGER.undoActionWasApplied = false;
-		
-		return;
-	}
-
-	if (Request.TypeOfModification == 0)
-	{
-		for (size_t i = 0; i < pointCloud->getSearchOctree()->PointnsInSphere.size(); i++)
-		{
-			pointCloud->vertexInfo[PointToModify[i]].position[0] = DELETED_POINTS_COORDINATE;
-			pointCloud->vertexInfo[PointToModify[i]].position[1] = DELETED_POINTS_COORDINATE;
-			pointCloud->vertexInfo[PointToModify[i]].position[2] = DELETED_POINTS_COORDINATE;
 		}
 	}
-	else if (Request.TypeOfModification == 1)
-	{
-		for (size_t i = 0; i < pointCloud->getSearchOctree()->PointnsInSphere.size(); i++)
-		{
-			pointCloud->vertexInfo[PointToModify[i]].classification != Request.AdditionalData;
-		}
-	}
-	
-	UpdatePointsInGPUMem(pointCloud, pointCloud->getSearchOctree()->PointnsInSphere, ctx);
-	PointToModify.clear();
 }
 
-static glm::vec3 LastRequestSphereCenter = glm::vec3(-10000.0f);
-static float LastRequestSphereSize = -100.0f;
-static int LastRequestType = -1;
-static float LastRequestAdditionalData = -FLT_MAX;
+static glm::vec3 lastDeletionCenter = glm::vec3(-10000.0f);
+static float lastDeletionSize = -100.0f;
 static DWORD alternativeTime = GetTickCount();
-
-bool IsRequestNew(float* Center, float Size, int TypeOfModification, float AdditionalData)
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUnity(float* center, float size)
 {
-	if (Size <= 0.0f)
+	if (size <= 0)
 	{
-		LOG.Add("Sphere size was: " + std::to_string(Size), "ModificationEvents");
-		return false;
+		LOG.Add("deletion sphere size was: " + std::to_string(size), "deleteEvents");
+		return 0;
 	}
 
-	glm::vec3 centerOfBrush = glm::vec3(Center[0], Center[1], Center[2]);
-	if (LastRequestSphereSize == Size && LastRequestSphereCenter == centerOfBrush &&
-		LastRequestType == TypeOfModification && LastRequestAdditionalData == AdditionalData)
+	glm::vec3 centerOfBrush = glm::vec3(center[0], center[1], center[2]);
+	if (lastDeletionSize == size && lastDeletionCenter == centerOfBrush)
 	{
 		if (UNDO_MANAGER.undoActionWasApplied)
 		{
@@ -774,69 +743,37 @@ bool IsRequestNew(float* Center, float Size, int TypeOfModification, float Addit
 		else
 		{
 			LOG.Add("lastDeletionSize == size && lastDeletionCenter == centerOfBrush", "deleteEvents");
-			return false;
+			return 0;
 		}
 	}
-	LastRequestSphereSize = Size;
-	LastRequestSphereCenter = centerOfBrush;
-	LastRequestType = TypeOfModification;
-	LastRequestAdditionalData = AdditionalData;
+	lastDeletionSize = size;
+	lastDeletionCenter = centerOfBrush;
 
-	if (GetTickCount() - timeLastTimeCall < 20)
-	{
-		if (UNDO_MANAGER.undoActionWasApplied)
-		{
-			UNDO_MANAGER.undoActionWasApplied = false;
-		}
+	LOG.Add("function: " + std::string(__FUNCTION__), "Threads");
+	LOG.Add("line: " + std::to_string(__LINE__), "Threads");
+	LOG.Add("thread: " + std::to_string(GetCurrentThreadId()), "Threads");
+	LOG.Add("=========================================", "Threads");
 
-		return false;
-	}
-	timeLastTimeCall = GetTickCount();
-
-	return true;
-}
-
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUnity(float* center, float size)
-{
-	if (!IsRequestNew(center, size, 0, 0.0f))
-		return 0;
 	/*bool expected = true;
 	if (!requestToDelete.compare_exchange_strong(expected, false))
 	{
 		LOG.Add("requestToDelete was false", "deleteEvents");
 		return false;
 	}*/
+
+	if (GetTickCount() - timeLastTimeCall < 20)
+	{
+		//LOG.Add("denial onDrawDeletePointsinGPUMem", "deleteEvents");
+		return 0;
+	}
+	timeLastTimeCall = GetTickCount();
 	
 	ModificationRequest NewRequest;
 	NewRequest.Center = glm::vec3(center[0], center[1], center[2]);
 	NewRequest.Size = size;
-	NewRequest.TypeOfModification = 0;
-	NewRequest.AdditionalData = 0.0f;
-
 	ModificationRequests.push_back(NewRequest);
 
 	return 0/*pointWasDeleted*/;
-}
-
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToModifyPointsFromUnity(float* Center, float Size, int TypeOfModification, float AdditionalData)
-{
-	if (!IsRequestNew(Center, Size, TypeOfModification, AdditionalData))
-		return 0;
-
-	ModificationRequest NewRequest;
-	NewRequest.Center = glm::vec3(Center[0], Center[1], Center[2]);
-	NewRequest.Size = Size;
-	NewRequest.TypeOfModification = TypeOfModification;
-	NewRequest.AdditionalData = AdditionalData;
-
-	ModificationRequests.push_back(NewRequest);
-
-	return 0;
-}
-
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestClassificationVisualizationFromUnity(bool VisualizeClassification)
-{
-	FloatsToSync["VisualizeClassification"] = VisualizeClassification;
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestOctreeDebugMaxNodeDepthFromUnity()
@@ -1585,7 +1522,7 @@ static void Render()
 		localHighlightDeletedPoints = true;
 	}
 	
-	WorkOnRequests();
+	WorkOnDeleteRequests();
 
 	for (size_t i = 0; i < pointClouds.size(); i++)
 	{

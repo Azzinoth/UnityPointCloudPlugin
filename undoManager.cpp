@@ -55,7 +55,7 @@ void undoManager::undo(int actionsToUndo)
 	currentPointCloud->vertexInfo = copyOfOriginalData;
 
 	// Update GPU buffer.
-	const int kVertexSize = 12 + 4;
+	const int kVertexSize = sizeof(VertexData);
 	ID3D11DeviceContext* ctx = NULL;
 
 	if (GPU.getDevice() != nullptr)
@@ -85,7 +85,7 @@ void undoManager::undoInternal(action* actionToUndo, std::vector<VertexData>& or
 		currentPointCloud->getSearchOctree()->searchForObjects(reinterpret_cast<deleteAction*>(actionToUndo)->center,
 															   reinterpret_cast<deleteAction*>(actionToUndo)->radius, deletedPoints);
 
-		LOG.Add("pointsToDelete size: " + std::to_string(deletedPoints.size()), "undoActions");
+		LOG.Add("PointnsInSphere size: " + std::to_string(deletedPoints.size()), "undoActions");
 	}
 	else if (actionToUndo->type == "deleteOutliersAction")
 	{

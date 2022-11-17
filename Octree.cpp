@@ -345,9 +345,9 @@ void octree::deleteObjects(glm::vec3& Center, float Radius)
     DWORD time = GetTickCount();
     deletedCount = 0;
 #endif
-    //root->deleteObjects(Center, Radius, this->pointsToDelete);
-    this->pointsToDelete.clear();
-    root->searchForObjects(Center, Radius, this->pointsToDelete);
+    //root->deleteObjects(Center, Radius, this->PointnsInSphere);
+    this->PointnsInSphere.clear();
+    root->searchForObjects(Center, Radius, this->PointnsInSphere);
 #ifdef MAIN_EVENTS_LOGGING
     debugLog::getInstance().addToLog("========= BEGIN OF DELETE EVENT =========", "OctreeEvents");
     debugLog::getInstance().addToLog("Center at ", Center, "OctreeEvents");

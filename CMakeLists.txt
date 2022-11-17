@@ -70,6 +70,8 @@ file(GLOB source_SRC
 	"loadManager.h"
 	"undoManager.cpp"
 	"undoManager.h"
+	#"APIFunctionsTools.cpp"
+	#"APIFunctionsTools.h"
 	"pch.cpp"
 	"pch.h"
 )

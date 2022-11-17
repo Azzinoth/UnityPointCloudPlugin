@@ -1,6 +1,3 @@
-#ifndef PCH_H
-#define PCH_H
-
 #include "undoManager.h"
 
 #include "framework.h"
@@ -11,23 +8,15 @@
 #include "thirdparty/laszip/include/laszip_api.h"
 #include "thirdparty/cnpy/cnpy.h"
 
-//#include "APIFunctionsTools.h"
-
-void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* unityInterfaces);
-void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload();
-//UNITY_INTERFACE_EXPORT char* UNITY_INTERFACE_API RequestPointCloudSpatialInfoFromUnity(int pointCloudIndex);
-
 struct ModificationRequest
 {
 	glm::vec3 Center;
 	float Size;
-	int TypeOfModification;
-	float AdditionalData;
 };
 
 static std::vector<ModificationRequest> ModificationRequests;
 
-void ApplyPoindModificationRequest(pointCloud* pointCloud, ID3D11DeviceContext* ctx, ModificationRequest Request);
+void onDrawDeletePointsinGPUMem(pointCloud* pointCloud, ID3D11DeviceContext* ctx);
 
 #ifdef USE_COMPUTE_SHADER
 const BYTE kVertexShaderCode[] =
@@ -687,5 +676,3 @@ const BYTE g_CSMain[] =
 	  0,   0,   0,   0,   0,   0,
 	  0,   0,   0,   0,   0,   0
 };
-
-#endif //PCH_H

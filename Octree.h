@@ -136,7 +136,7 @@ class octree
     friend octreeNode;
 public:
     octreeNode* root;
-    std::vector<int> pointsToDelete;
+    std::vector<int> PointnsInSphere;
 
     octree();
     octree(float worldSize, glm::vec3 worldCenter);
