@@ -19,15 +19,85 @@ void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload();
 
 struct ModificationRequest
 {
+	std::string ID;
+
 	glm::vec3 Center;
 	float Size;
 	int TypeOfModification;
 	float AdditionalData;
+
+	int Result = 0;
 };
 
 static std::vector<ModificationRequest> ModificationRequests;
+static std::vector<ModificationRequest> RenderingThreadLocalCopy;
 
 void ApplyPoindModificationRequest(pointCloud* pointCloud, ID3D11DeviceContext* ctx, ModificationRequest Request);
+
+const std::string VertexShaderSource = R"(
+
+cbuffer MyCB : register(b0)
+{
+	float4x4 finalMatrix;
+	float4x4 glmViewMatrix;
+	float4x4 worldMatrix;
+	float4 additionalFloat;
+
+	float4 ClassToColor[512];
+}
+
+void VS(float3 pos : POSITION, float4 color : COLOR, uint classification : CLASSIFICATION, out float4 FinalColor : COLOR, out float4 FinalPosition : SV_Position)
+{
+	FinalPosition = mul(finalMatrix, float4(pos, 1));
+	FinalColor = float4(0, 1, 0, 1);
+
+	float3 CameraPosition = float3(-glmViewMatrix[3][1], -glmViewMatrix[3][2], glmViewMatrix[3][0]);
+	float3 WorldPosition = mul(worldMatrix, float4(pos, 1));
+
+	//if (FinalPosition.z > additionalFloat.x)
+	//	FinalColor = float4(1, 0, 0, 1);
+
+	//if (distance(CameraPosition, WorldPosition) > additionalFloat.x)
+		//FinalColor = float4(1, 0, 0, 1);
+
+	if (additionalFloat.x == 1)
+	{
+		for (int i = 0; i < 512; i++)
+		{
+			if (classification == ClassToColor[i].x)
+			{
+				color.r = ClassToColor[i].y;
+				color.g = ClassToColor[i].z;
+				color.b = ClassToColor[i].w;
+
+				break;
+			}
+		}
+		
+
+		//if (classification == 0)
+		//		color.r += 0.5;
+	}
+
+	FinalColor = color;
+}
+
+)";
+
+#define CLASSIFICATION_MAX_COUNT 512
+
+struct MyConstBuffer
+{
+	glm::mat4 finalMat;
+	glm::mat4 glmViewMatrix;
+	glm::mat4 worldMatrix;
+	glm::vec4 additionalFloat;
+
+	glm::vec4 ClassToColor[CLASSIFICATION_MAX_COUNT];
+};
+
+static int ClassificationCount = 0;
+static MyConstBuffer* ConstBufferData = new MyConstBuffer();
 
 #ifdef USE_COMPUTE_SHADER
 const BYTE kVertexShaderCode[] =

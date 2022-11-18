@@ -21,7 +21,7 @@ std::string getVersion()
 	return result;
 }
 
-static std::string currentVersion = "version 2022.11.17.20448";
+static std::string currentVersion = "version 2022.11.18.18309";
 
 static ID3D11Buffer* m_CB = nullptr;
 static ID3D11VertexShader* m_VertexShader;
@@ -103,12 +103,12 @@ std::vector<pointCloud*> pointClouds;
 
 void WorkOnRequests()
 {
-	std::vector<ModificationRequest> LocalCopy = ModificationRequests;
+	/*std::vector<ModificationRequest>*/ RenderingThreadLocalCopy = ModificationRequests;
 	ModificationRequests.clear();
 
-	for (size_t i = 0; i < LocalCopy.size(); i++)
+	for (size_t i = 0; i < RenderingThreadLocalCopy.size(); i++)
 	{
-		int pointWasDeleted = 0;
+		RenderingThreadLocalCopy[i].Result = 0;
 #ifdef USE_COMPUTE_SHADER
 
 		deletionSpherePosition = glm::vec3(center[0], center[1], center[2]);
@@ -152,24 +152,24 @@ void WorkOnRequests()
 			if (!pointClouds[j]->wasFullyLoaded)
 				continue;
 
-			glm::vec3 localPosition = glm::inverse(glm::transpose(pointClouds[j]->worldMatrix)) * glm::vec4(LocalCopy[i].Center, 1.0f);
+			glm::vec3 localPosition = glm::inverse(glm::transpose(pointClouds[j]->worldMatrix)) * glm::vec4(RenderingThreadLocalCopy[i].Center, 1.0f);
 			float extractedScale = glm::length(glm::transpose(pointClouds[j]->worldMatrix)[0]);
-			LocalCopy[i].Size /= extractedScale;
+			RenderingThreadLocalCopy[i].Size /= extractedScale;
 
-			if (pointClouds[j]->getSearchOctree()->isInOctreeBound(localPosition, LocalCopy[i].Size))
+			if (pointClouds[j]->getSearchOctree()->isInOctreeBound(localPosition, RenderingThreadLocalCopy[i].Size))
 			{
-				pointClouds[j]->getSearchOctree()->searchForObjects(localPosition, LocalCopy[i].Size, pointClouds[j]->getSearchOctree()->PointnsInSphere);
+				pointClouds[j]->getSearchOctree()->searchForObjects(localPosition, RenderingThreadLocalCopy[i].Size, pointClouds[j]->getSearchOctree()->PointnsInSphere);
 			}
 
 			if (pointClouds[j]->getSearchOctree()->PointnsInSphere.size() > 0)
 			{
-				if (LocalCopy[i].TypeOfModification == 0)
+				if (RenderingThreadLocalCopy[i].TypeOfModification == 0)
 				{
-					UNDO_MANAGER.addAction(new deleteAction(localPosition, LocalCopy[i].Size, pointClouds[j]));
+					UNDO_MANAGER.addAction(new deleteAction(localPosition, RenderingThreadLocalCopy[i].Size, pointClouds[j]));
 
 					LOG.Add("==============================================================", "deleteEvents");
 					LOG.Add("Brush location: " + vec3ToString(localPosition), "deleteEvents");
-					LOG.Add("Brush size: " + std::to_string(LocalCopy[i].Size), "deleteEvents");
+					LOG.Add("Brush size: " + std::to_string(RenderingThreadLocalCopy[i].Size), "deleteEvents");
 					LOG.Add("PointnsInSphere size: " + std::to_string(pointClouds[j]->getSearchOctree()->PointnsInSphere.size()), "deleteEvents");
 
 					octree* currentOctree = pointClouds[j]->getSearchOctree();
@@ -179,26 +179,25 @@ void WorkOnRequests()
 							pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].position[1] != DELETED_POINTS_COORDINATE &&
 							pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].position[2] != DELETED_POINTS_COORDINATE)
 						{
-							pointWasDeleted++;
-							//break;
+							RenderingThreadLocalCopy[i].Result++;
 						}
 					}
 				}
-				else if (LocalCopy[i].TypeOfModification == 1)
+				else if (RenderingThreadLocalCopy[i].TypeOfModification == 1)
 				{
 					octree* currentOctree = pointClouds[j]->getSearchOctree();
 					for (size_t j = 0; j < currentOctree->PointnsInSphere.size(); j++)
 					{
-						if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].classification != LocalCopy[i].AdditionalData)
+						if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].classification != RenderingThreadLocalCopy[i].AdditionalData)
 						{
-							pointWasDeleted++;
+							RenderingThreadLocalCopy[i].Result++;
 						}
 					}
 				}
 
 				ID3D11DeviceContext* ctx = NULL;
 				GPU.getDevice()->GetImmediateContext(&ctx);
-				ApplyPoindModificationRequest(pointClouds[j], ctx, LocalCopy[i]);
+				ApplyPoindModificationRequest(pointClouds[j], ctx, RenderingThreadLocalCopy[i]);
 				ctx->Release();
 			}
 		}
@@ -373,6 +372,8 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ValidatePointCloudGMF
 	return true;
 }
 
+//extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddClassificationEntry(int Type, float R, float G, float B);
+
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity(char* projectFilePath)
 {
 	LOG.SetFileOutput(true);
@@ -381,9 +382,20 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 	LOG.DisableTopicFileOutput("precision");
 	LOG.DisableTopicFileOutput("screens");
 	LOG.DisableTopicFileOutput("renderLog");
+	LOG.DisableTopicFileOutput("Threads");
 
 	if (THREAD_POOL.GetThreadCount() == 0)
 		THREAD_POOL.SetConcurrentThreadCount(2);
+
+	ClassificationCount = 0;
+
+	/*for (size_t i = 4500; i < 4600; i++)
+	{
+		AddClassificationEntry(i, 1.0f, 0.1f, 0.1f);
+	}*/
+	//AddClassificationEntry(0, 0.1f, 1.0f, 0.1f);
+	//AddClassificationEntry(1, 0.1f, 0.1f, 1.0f);
+	//AddClassificationEntry(155, 1.0f, 0.1f, 1.0f);
 
 	if (FloatsToSync.size() == 0)
 	{
@@ -739,9 +751,11 @@ void ApplyPoindModificationRequest(pointCloud* pointCloud, ID3D11DeviceContext* 
 	}
 	else if (Request.TypeOfModification == 1)
 	{
+		LOG.Add("Request.TypeOfModification == 1 in ApplyPoindModificationRequest", "Classification");
+
 		for (size_t i = 0; i < pointCloud->getSearchOctree()->PointnsInSphere.size(); i++)
 		{
-			pointCloud->vertexInfo[PointToModify[i]].classification != Request.AdditionalData;
+			pointCloud->vertexInfo[PointToModify[i]].classification = Request.AdditionalData;
 		}
 	}
 	
@@ -796,41 +810,98 @@ bool IsRequestNew(float* Center, float Size, int TypeOfModification, float Addit
 	return true;
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUnity(float* center, float size)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUnity(float* center, float size, int* RequestID)
 {
 	if (!IsRequestNew(center, size, 0, 0.0f))
-		return 0;
+		return;
 	
 	ModificationRequest NewRequest;
 	NewRequest.Center = glm::vec3(center[0], center[1], center[2]);
 	NewRequest.Size = size;
 	NewRequest.TypeOfModification = 0;
 	NewRequest.AdditionalData = 0.0f;
+	NewRequest.ID = APPLICATION.GetUniqueHexID();
+
+	LOG.Add("NewRequest.ID = " + NewRequest.ID, "NewRequest.ID");
+	for (size_t i = 0; i < 24; i++)
+	{
+		RequestID[i] = int(NewRequest.ID[i]);
+	}
 
 	ModificationRequests.push_back(NewRequest);
-
-	return 0/*pointWasDeleted*/;
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToModifyPointsFromUnity(float* Center, float Size, int TypeOfModification, float AdditionalData)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToModifyPointsFromUnity(float* Center, float Size, int TypeOfModification, float AdditionalData, int* RequestID)
 {
 	if (!IsRequestNew(Center, Size, TypeOfModification, AdditionalData))
-		return 0;
+		return;
 
 	ModificationRequest NewRequest;
 	NewRequest.Center = glm::vec3(Center[0], Center[1], Center[2]);
 	NewRequest.Size = Size;
 	NewRequest.TypeOfModification = TypeOfModification;
 	NewRequest.AdditionalData = AdditionalData;
+	NewRequest.ID = APPLICATION.GetUniqueHexID();
+
+	LOG.Add("NewRequest.ID = " + NewRequest.ID, "NewRequest.ID");
+	for (size_t i = 0; i < 24; i++)
+	{
+		RequestID[i] = int(NewRequest.ID[i]);
+	}
 
 	ModificationRequests.push_back(NewRequest);
+}
 
-	return 0;
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRequestResult(char* RequestID)
+{
+	for (size_t i = 0; i < RenderingThreadLocalCopy.size(); i++)
+	{
+		if (RenderingThreadLocalCopy[i].ID == RequestID)
+		{
+			return RenderingThreadLocalCopy[i].Result;
+		}
+	}
+
+	return -1;
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestClassificationVisualizationFromUnity(bool VisualizeClassification)
 {
 	FloatsToSync["VisualizeClassification"] = VisualizeClassification;
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API AddClassificationEntry(int Type, float R, float G, float B)
+{
+	if (ClassificationCount == CLASSIFICATION_MAX_COUNT)
+		return;
+
+	ConstBufferData->ClassToColor[ClassificationCount] = glm::vec4(Type, R, G, B);
+
+	ClassificationCount++;
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ClearClassificationTable()
+{
+	for (size_t i = 0; i < CLASSIFICATION_MAX_COUNT; i++)
+	{
+		ConstBufferData->ClassToColor[i] = glm::vec4(0.0f);
+	}
+
+	ClassificationCount = 0;
+}
+
+extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateClassificationEntry(int Type, float R, float G, float B)
+{
+	for (size_t i = 0; i < CLASSIFICATION_MAX_COUNT; i++)
+	{
+		if (ConstBufferData->ClassToColor[i].x == Type)
+		{
+			ConstBufferData->ClassToColor[i] = glm::vec4(Type, R, G, B);
+			return true;
+		}
+	}
+
+	return false;
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestOctreeDebugMaxNodeDepthFromUnity()
@@ -974,69 +1045,6 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 	s_Graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
 }
 
-const std::string VertexShaderSource = R"(
-
-cbuffer MyCB : register(b0)
-{
-	float4x4 finalMatrix;
-	float4x4 glmViewMatrix;
-	float4x4 worldMatrix;
-	float4 additionalFloat;
-
-	float4 ClassToColor[256];
-}
-
-void VS(float3 pos : POSITION, float4 color : COLOR, uint classification : CLASSIFICATION, out float4 FinalColor : COLOR, out float4 FinalPosition : SV_Position)
-{
-	FinalPosition = mul(finalMatrix, float4(pos, 1));
-	FinalColor = float4(0, 1, 0, 1);
-
-	float3 CameraPosition = float3(-glmViewMatrix[3][1], -glmViewMatrix[3][2], glmViewMatrix[3][0]);
-	float3 WorldPosition = mul(worldMatrix, float4(pos, 1));
-
-	//if (FinalPosition.z > additionalFloat.x)
-	//	FinalColor = float4(1, 0, 0, 1);
-
-	//if (distance(CameraPosition, WorldPosition) > additionalFloat.x)
-		//FinalColor = float4(1, 0, 0, 1);
-
-
-	//color.r += additionalFloat.x;
-	//color.r += 0.5;
-
-	if (additionalFloat.x == 1)
-	{
-		color.r = ClassToColor[classification].y;
-		color.g = ClassToColor[classification].z;
-		color.b = ClassToColor[classification].w;
-
-		//if (classification == 0)
-		//		color.r += 0.5;
-	}
-
-	//if (classification == 1)
-	//	color.g += 0.5;
-
-	//if (classification == 155)
-	//	color.b += 0.5;
-
-	FinalColor = color;
-}
-
-)";
-
-struct MyConstBuffer
-{
-	glm::mat4 finalMat;
-	glm::mat4 glmViewMatrix;
-	glm::mat4 worldMatrix;
-	glm::vec4 additionalFloat;
-
-	glm::vec4 ClassToColor[256];
-};
-
-static MyConstBuffer* ConstBufferData = new MyConstBuffer();
-
 static void createConstantBuffer(ID3D11Buffer** Buffer)
 {
 	LOG.Add("createConstantBuffer begin.", "AddVariableToShader");
@@ -1109,7 +1117,7 @@ static void CreateResources()
 		{
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "CLASSIFICATION", 0,  DXGI_FORMAT_R8_UINT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+			{ "CLASSIFICATION", 0,  DXGI_FORMAT_R16_UINT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
 		//GPU.getDevice()->CreateInputLayout(s_DX11InputElementDesc, 3, kVertexShaderCode, sizeof(kVertexShaderCode), &m_InputLayout);
 		GPU.getDevice()->CreateInputLayout(s_DX11InputElementDesc, 3, pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), &m_InputLayout);
@@ -1274,21 +1282,6 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		ConstBufferData->glmViewMatrix = glmViewMatrix;
 		ConstBufferData->worldMatrix = glmWorldMatrix;
 		ConstBufferData->additionalFloat.x = FloatsToSync["VisualizeClassification"];
-
-		ConstBufferData->ClassToColor[0].x = 0.0f;
-		ConstBufferData->ClassToColor[0].y = 0.1f;
-		ConstBufferData->ClassToColor[0].z = 0.1f;
-		ConstBufferData->ClassToColor[0].w = 1.0f;
-
-		ConstBufferData->ClassToColor[1].x = 1.0f;
-		ConstBufferData->ClassToColor[1].y = 0.1f;
-		ConstBufferData->ClassToColor[1].z = 1.0f;
-		ConstBufferData->ClassToColor[1].w = 0.1f;
-
-		ConstBufferData->ClassToColor[255].x = 255.0f;
-		ConstBufferData->ClassToColor[255].y = 0.9f;
-		ConstBufferData->ClassToColor[255].z = 0.0f;
-		ConstBufferData->ClassToColor[255].w = 0.9f;
 
 		ctx->UpdateSubresource(m_CB, 0, NULL, ConstBufferData, 0, 0);
 

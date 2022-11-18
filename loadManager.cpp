@@ -724,6 +724,8 @@ void LoadManager::LoadLazLas(pointCloud* PointCloud, std::string Path)
 	laszip_U64 p_count = 0;
 	std::vector<VertexData> points;
 	float maxIntensity = -FLT_MAX;
+	int MinClassification = INT_MAX;
+	int MaxClassification = -INT_MAX;
 	while (p_count < npoints)
 	{
 		// read a point
@@ -740,26 +742,20 @@ void LoadManager::LoadLazLas(pointCloud* PointCloud, std::string Path)
 		double readY = point->Z;
 		double readZ = point->Y;
 
-		if (point->num_extra_bytes > 0)
+		if (point->num_extra_bytes == 1)
 		{
-			char* test = (char*)point->extra_bytes;
+			PointCloud->vertexInfo[p_count].classification = int(*(unsigned char*)point->extra_bytes);
 
-			if (test[0] == '\0')
-			{
-				int y = 0;
-				y++;
-			}
-			else if (test[0] == '\x1')
-			{
-				PointCloud->vertexInfo[p_count].classification = 1;
-			}
-			else
-			{
-				PointCloud->vertexInfo[p_count].classification = 0;
-			}
+			MinClassification = glm::min(MinClassification, PointCloud->vertexInfo[p_count].classification);
+			MaxClassification = glm::max(MaxClassification, PointCloud->vertexInfo[p_count].classification);
 		}
+		else if (point->num_extra_bytes == 2)
+		{
+			PointCloud->vertexInfo[p_count].classification = int(*(unsigned short*)point->extra_bytes);
 
-		//PointCloud->vertexInfo[p_count].classification = 155;
+			MinClassification = glm::min(MinClassification, PointCloud->vertexInfo[p_count].classification);
+			MaxClassification = glm::max(MaxClassification, PointCloud->vertexInfo[p_count].classification);
+		}
 
 		DoublePoints[p_count].x = readX * header->x_scale_factor;
 		DoublePoints[p_count].y = readY * header->z_scale_factor;
@@ -790,6 +786,9 @@ void LoadManager::LoadLazLas(pointCloud* PointCloud, std::string Path)
 
 		p_count++;
 	}
+
+	LOG.Add("MinClassification : " + std::to_string(MinClassification), "File_Load_Log");
+	LOG.Add("MaxClassification : " + std::to_string(MaxClassification), "File_Load_Log");
 
 	if (header->point_data_format == 1)
 	{

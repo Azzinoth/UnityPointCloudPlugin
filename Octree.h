@@ -17,7 +17,7 @@ struct VertexData
 {
     glm::vec3 position;
     byte color[4];
-    byte classification;
+    int classification;
 };
 
 struct octreeSearchInfo
