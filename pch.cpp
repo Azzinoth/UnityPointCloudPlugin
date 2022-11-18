@@ -163,7 +163,7 @@ void WorkOnRequests()
 
 			if (pointClouds[j]->getSearchOctree()->PointnsInSphere.size() > 0)
 			{
-				if (LocalCopy[i].TypeOfModification = 0)
+				if (LocalCopy[i].TypeOfModification == 0)
 				{
 					UNDO_MANAGER.addAction(new deleteAction(localPosition, LocalCopy[i].Size, pointClouds[j]));
 
@@ -184,7 +184,7 @@ void WorkOnRequests()
 						}
 					}
 				}
-				else if (LocalCopy[i].TypeOfModification = 1)
+				else if (LocalCopy[i].TypeOfModification == 1)
 				{
 					octree* currentOctree = pointClouds[j]->getSearchOctree();
 					for (size_t j = 0; j < currentOctree->PointnsInSphere.size(); j++)
@@ -773,7 +773,7 @@ bool IsRequestNew(float* Center, float Size, int TypeOfModification, float Addit
 		}
 		else
 		{
-			LOG.Add("lastDeletionSize == size && lastDeletionCenter == centerOfBrush", "deleteEvents");
+			LOG.Add("LastRequestSphereSize == Size && LastRequestSphereCenter == centerOfBrush && LastRequestType == TypeOfModification && LastRequestAdditionalData == AdditionalData", "ModificationEvents");
 			return false;
 		}
 	}
@@ -800,12 +800,6 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUni
 {
 	if (!IsRequestNew(center, size, 0, 0.0f))
 		return 0;
-	/*bool expected = true;
-	if (!requestToDelete.compare_exchange_strong(expected, false))
-	{
-		LOG.Add("requestToDelete was false", "deleteEvents");
-		return false;
-	}*/
 	
 	ModificationRequest NewRequest;
 	NewRequest.Center = glm::vec3(center[0], center[1], center[2]);
@@ -1279,7 +1273,7 @@ static void DrawPointCloud(pointCloud* pointCloudToRender, bool HighlightDeleted
 		ConstBufferData->finalMat = finalMatrix;
 		ConstBufferData->glmViewMatrix = glmViewMatrix;
 		ConstBufferData->worldMatrix = glmWorldMatrix;
-		ConstBufferData->additionalFloat.x = FloatsToSync["FirstShaderFloat"];
+		ConstBufferData->additionalFloat.x = FloatsToSync["VisualizeClassification"];
 
 		ConstBufferData->ClassToColor[0].x = 0.0f;
 		ConstBufferData->ClassToColor[0].y = 0.1f;
