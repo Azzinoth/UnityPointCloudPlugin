@@ -173,11 +173,11 @@ void WorkOnRequests()
 					LOG.Add("PointnsInSphere size: " + std::to_string(pointClouds[j]->getSearchOctree()->PointnsInSphere.size()), "deleteEvents");
 
 					octree* currentOctree = pointClouds[j]->getSearchOctree();
-					for (size_t j = 0; j < currentOctree->PointnsInSphere.size(); j++)
+					for (size_t k = 0; k < currentOctree->PointnsInSphere.size(); k++)
 					{
-						if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].position[0] != DELETED_POINTS_COORDINATE &&
-							pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].position[1] != DELETED_POINTS_COORDINATE &&
-							pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].position[2] != DELETED_POINTS_COORDINATE)
+						if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].position[0] != DELETED_POINTS_COORDINATE &&
+							pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].position[1] != DELETED_POINTS_COORDINATE &&
+							pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].position[2] != DELETED_POINTS_COORDINATE)
 						{
 							RenderingThreadLocalCopy[i].Result++;
 						}
@@ -186,9 +186,9 @@ void WorkOnRequests()
 				else if (RenderingThreadLocalCopy[i].TypeOfModification == 1)
 				{
 					octree* currentOctree = pointClouds[j]->getSearchOctree();
-					for (size_t j = 0; j < currentOctree->PointnsInSphere.size(); j++)
+					for (size_t k = 0; k < currentOctree->PointnsInSphere.size(); k++)
 					{
-						if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[j]].classification != RenderingThreadLocalCopy[i].AdditionalData)
+						if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].classification != RenderingThreadLocalCopy[i].AdditionalData)
 						{
 							RenderingThreadLocalCopy[i].Result++;
 						}
