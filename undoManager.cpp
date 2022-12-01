@@ -14,26 +14,40 @@ undoManager::~undoManager()
 void undoManager::addAction(action* newAction)
 {
 	undoActions.push_back(newAction);
+
+	LOG.Add("undoManager::addAction was called", "undoActions");
+	LOG.Add("newAction->type: " + newAction->type, "undoActions");
 }
 
 void undoManager::undo(int actionsToUndo)
 {
-	if (undoActions.size() == 0 || actionsToUndo <= 0 || actionsToUndo > undoActions.size())
+	LOG.Add("undoManager::undo was called", "undoActions");
+	LOG.Add("actionsToUndo: " + std::to_string(actionsToUndo), "undoActions");
+	LOG.Add("undoActions.size(): " + std::to_string(undoActions.size()), "undoActions");
+
+	if (actionsToUndo > undoActions.size())
+	{
+		LOG.Add("actionsToUndo > undoActions.size()", "undoActions");
+		actionsToUndo = undoActions.size();
+	}
+
+	if (undoActions.size() == 0 || actionsToUndo <= 0 )
 		return;
 
 	pointCloud* currentPointCloud = nullptr;
 	currentPointCloud = undoActions.back()->affectedPointCloud;
 
-	LOG.Add("currentPointCloud ID: " + currentPointCloud->ID, "undoActions");
+	//LOG.Add("currentPointCloud ID: " + currentPointCloud->ID, "undoActions");
 	if (currentPointCloud == nullptr)
 		return;
 
 	// Take original data.
 	std::vector<VertexData> copyOfOriginalData = currentPointCloud->originalData;
 
+	
 	for (size_t i = undoActions.size() - 1; i >= 0; i--)
 	{
-		LOG.Add("i was : " + std::to_string(i), "undoActions");
+		//LOG.Add("i was : " + std::to_string(i), "undoActions");
 		if (undoActions[i]->affectedPointCloud != currentPointCloud)
 			continue;
 

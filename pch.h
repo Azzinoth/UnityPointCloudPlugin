@@ -29,8 +29,13 @@ struct ModificationRequest
 	int Result = 0;
 };
 
+static std::unordered_map<std::string, int> ModificationResults;
 static std::vector<ModificationRequest> ModificationRequests;
 static std::vector<ModificationRequest> RenderingThreadLocalCopy;
+static std::vector<int> LastResults;
+static int LastResult = 0;
+
+static std::atomic<bool> bDeletionResultCountInProgress = false;
 
 void ApplyPoindModificationRequest(pointCloud* pointCloud, ID3D11DeviceContext* ctx, ModificationRequest Request);
 

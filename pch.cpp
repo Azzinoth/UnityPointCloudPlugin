@@ -21,7 +21,7 @@ std::string getVersion()
 	return result;
 }
 
-static std::string currentVersion = "version 2022.11.18.18309";
+static std::string currentVersion = "version 2022.12.1.24606";
 
 static ID3D11Buffer* m_CB = nullptr;
 static ID3D11VertexShader* m_VertexShader;
@@ -103,8 +103,12 @@ std::vector<pointCloud*> pointClouds;
 
 void WorkOnRequests()
 {
-	/*std::vector<ModificationRequest>*/ RenderingThreadLocalCopy = ModificationRequests;
+	LOG.Add("WorkOnRequests() got called", "WorkOnRequests");
+
+	RenderingThreadLocalCopy = ModificationRequests;
 	ModificationRequests.clear();
+
+	LOG.Add("before loop", "WorkOnRequests");
 
 	for (size_t i = 0; i < RenderingThreadLocalCopy.size(); i++)
 	{
@@ -163,10 +167,11 @@ void WorkOnRequests()
 
 			if (pointClouds[j]->getSearchOctree()->PointnsInSphere.size() > 0)
 			{
+				bDeletionResultCountInProgress = true;
+				LastResults.push_back(0);
+
 				if (RenderingThreadLocalCopy[i].TypeOfModification == 0)
 				{
-					UNDO_MANAGER.addAction(new deleteAction(localPosition, RenderingThreadLocalCopy[i].Size, pointClouds[j]));
-
 					LOG.Add("==============================================================", "deleteEvents");
 					LOG.Add("Brush location: " + vec3ToString(localPosition), "deleteEvents");
 					LOG.Add("Brush size: " + std::to_string(RenderingThreadLocalCopy[i].Size), "deleteEvents");
@@ -180,7 +185,20 @@ void WorkOnRequests()
 							pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].position[2] != DELETED_POINTS_COORDINATE)
 						{
 							RenderingThreadLocalCopy[i].Result++;
+							ModificationResults[RenderingThreadLocalCopy[i].ID]++;
+							
+							LastResults.back()++;
+							LastResult++;
 						}
+					}
+
+					// Unity part counts undo based on LastResult
+					if (LastResults.back() > 0)
+					{
+						LOG.Add("LastResult = " + std::to_string(LastResults.back()), "deleteEvents");
+						LOG.Add("UNDO_MANAGER.addAction", "deleteEvents");
+
+						UNDO_MANAGER.addAction(new deleteAction(localPosition, RenderingThreadLocalCopy[i].Size, pointClouds[j]));
 					}
 				}
 				else if (RenderingThreadLocalCopy[i].TypeOfModification == 1)
@@ -191,9 +209,15 @@ void WorkOnRequests()
 						if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].classification != RenderingThreadLocalCopy[i].AdditionalData)
 						{
 							RenderingThreadLocalCopy[i].Result++;
+							ModificationResults[RenderingThreadLocalCopy[i].ID]++;
+
+							LastResults.back()++;
+							LastResult++;
 						}
 					}
 				}
+
+				bDeletionResultCountInProgress = false;
 
 				ID3D11DeviceContext* ctx = NULL;
 				GPU.getDevice()->GetImmediateContext(&ctx);
@@ -206,6 +230,8 @@ void WorkOnRequests()
 
 		//requestToDelete = true;
 	}
+
+	RenderingThreadLocalCopy.clear();
 }
 
 static string NextTextToSend = "";
@@ -376,7 +402,7 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ValidatePointCloudGMF
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity(char* projectFilePath)
 {
-	LOG.SetFileOutput(true);
+	//LOG.SetFileOutput(true);
 
 	LOG.DisableTopicFileOutput("camera");
 	LOG.DisableTopicFileOutput("precision");
@@ -828,7 +854,10 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToDeleteFromUn
 		RequestID[i] = int(NewRequest.ID[i]);
 	}
 
-	ModificationRequests.push_back(NewRequest);
+	//ModificationRequests.push_back(NewRequest);
+
+	LOG.Add("RequestToDeleteFromUnity was called", "LOOK HERE");
+	LOG.Add("NewRequest.Center: " + vec3ToString(NewRequest.Center), "LOOK HERE");
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToModifyPointsFromUnity(float* Center, float Size, int TypeOfModification, float AdditionalData, int* RequestID)
@@ -849,16 +878,89 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToModifyPoints
 		RequestID[i] = int(NewRequest.ID[i]);
 	}
 
-	ModificationRequests.push_back(NewRequest);
+	//ModificationRequests.push_back(NewRequest);
+
+	LOG.Add("RequestToModifyPointsFromUnity was called", "LOOK HERE");
+	LOG.Add("NewRequest.Center: " + vec3ToString(NewRequest.Center), "LOOK HERE");
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRequestResult(char* RequestID)
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateModificationParameters(float* Center, float Size, int TypeOfModification, float AdditionalData)
 {
-	for (size_t i = 0; i < RenderingThreadLocalCopy.size(); i++)
+	/*MainRequest.Center = glm::vec3(Center[0], Center[1], Center[2]);
+	MainRequest.Size = Size;
+	MainRequest.TypeOfModification = TypeOfModification;
+	MainRequest.AdditionalData = AdditionalData;
+	MainRequest.Result = 0;*/
+
+	ModificationRequests.clear();
+
+	ModificationRequest NewRequest;
+	NewRequest.Center = glm::vec3(Center[0], Center[1], Center[2]);
+	NewRequest.Size = Size;
+	NewRequest.TypeOfModification = TypeOfModification;
+	NewRequest.AdditionalData = AdditionalData;
+	
+	ModificationRequests.push_back(NewRequest);
+
+	LOG.Add("UpdateModificationParameters was called", "LOOK HERE");
+}
+
+extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRequestResult(/*char* RequestID*/)
+{
+	/*for (size_t i = 0; i < RenderingThreadLocalCopy.size(); i++)
 	{
 		if (RenderingThreadLocalCopy[i].ID == RequestID)
 		{
 			return RenderingThreadLocalCopy[i].Result;
+		}
+	}*/
+
+	/*if (ModificationResults.find(RequestID) != ModificationResults.end())
+	{
+		int Temp = ModificationResults[RequestID];
+		ModificationResults.erase(RequestID);
+		return Temp;
+	}
+	
+	return -1;*/
+
+	//return MainRequest.Result;
+
+	//if (RenderingThreadLocalCopy.empty())
+	//	return 0;
+
+
+	//LOG.Add("GetRequestResult was called", "GetRequestResult");
+
+
+
+	/*if (LastResult != 0)
+		LOG.Add("LastResult = " + std::to_string(LastResult), "GetRequestResult");
+
+	static int NonZeroResultCount = 0;
+	if (LastResult != 0)
+	{
+		NonZeroResultCount++;
+		LOG.Add("New NonZeroResultCount: " + std::to_string(NonZeroResultCount), "GetRequestResult");
+	}*/
+
+	bool expected = false;
+	if (!bDeletionResultCountInProgress.compare_exchange_strong(expected, false))
+	{
+		LOG.Add("bDeletionResultCountInProgress is true", "GetRequestResult");
+		return -1;
+	}
+	else
+	{
+		if (LastResults.size() > 0)
+		{
+			int Temp = LastResults[0];
+			LastResults.erase(LastResults.begin());
+			return Temp;
+		}
+		else
+		{
+			return 0;
 		}
 	}
 
@@ -1560,10 +1662,7 @@ static void Render()
 		LOG.Add("render thread: " + std::to_string(GetCurrentThreadId()), "camera");
 	}*/
 
-	LOG.Add("function: " + std::string(__FUNCTION__), "Threads");
-	LOG.Add("line: " + std::to_string(__LINE__), "Threads");
-	LOG.Add("thread: " + std::to_string(GetCurrentThreadId()), "Threads");
-	LOG.Add("=========================================", "Threads");
+	LOG.Add("Render() got called", "Render");
 
 	static DWORD timeLastTimeMemoryModification = GetTickCount();
 	if (/*highlightDeletedPoints &&*/ GetTickCount() - timeLastTimeMemoryModification > 33)

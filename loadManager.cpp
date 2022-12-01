@@ -1080,10 +1080,28 @@ void SaveManager::SaveFunc(void* InputData, void* OutputData)
 					PointCloud->vertexInfo[j].position[1] != DELETED_POINTS_COORDINATE &&
 					PointCloud->vertexInfo[j].position[2] != DELETED_POINTS_COORDINATE)
 				{
-					if (laszip_set_point(laszip_writer, &PointCloud->loadedFrom->LAZpoints[j]))
+					if (PointCloud->vertexInfo[j].classification != int(*(unsigned char*)PointCloud->loadedFrom->LAZpoints[j].extra_bytes))
 					{
-						LOG.Add("setting point " + std::to_string(j) + " failed", "DLL_ERRORS");
-						return;
+						static unsigned char* Old = new unsigned char[PointCloud->loadedFrom->LAZpoints[0].num_extra_bytes];
+						//std::copy(PointCloud->loadedFrom->LAZpoints[j].extra_bytes, PointCloud->loadedFrom->LAZpoints[j].extra_bytes + 2, Old)
+						*Old = *PointCloud->loadedFrom->LAZpoints[j].extra_bytes;
+
+						*PointCloud->loadedFrom->LAZpoints[j].extra_bytes = PointCloud->vertexInfo[j].classification;
+						if (laszip_set_point(laszip_writer, &PointCloud->loadedFrom->LAZpoints[j]))
+						{
+							LOG.Add("setting point " + std::to_string(j) + " failed", "DLL_ERRORS");
+							return;
+						}
+
+						PointCloud->loadedFrom->LAZpoints[j].classification = *Old;
+					}
+					else
+					{
+						if (laszip_set_point(laszip_writer, &PointCloud->loadedFrom->LAZpoints[j]))
+						{
+							LOG.Add("setting point " + std::to_string(j) + " failed", "DLL_ERRORS");
+							return;
+						}
 					}
 
 					if (laszip_write_point(laszip_writer))
@@ -1124,20 +1142,6 @@ SaveManager::~SaveManager() {}
 
 bool SaveManager::SavePointCloudAsync(std::string path, pointCloud* PointCloud)
 {
-	//// Firstly we check if we can process this request right now
-	//// if we are working on different request we should decline this one.
-	//bool expected = true;
-	//if (!savingDone.compare_exchange_strong(expected, false))
-	//{
-	//	LOG.Add("Saving thread was in work !", "OctreeEvents");
-	//	return false;
-	//}
-
-	//currentPath = path;
-	//currentPointCloud = PointCloud;
-
-	//newJobReady = true;
-
 	InfoForSaving* InputData = new InfoForSaving();
 	InputData->currentPath = path;
 	InputData->currentPointCloud = PointCloud;
