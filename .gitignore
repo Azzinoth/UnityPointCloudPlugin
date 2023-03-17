@@ -15,23 +15,12 @@
 *.vcxproj
 *.vcxproj.filters
 *.vcxproj.user
+*.cmake
 *.txt
-
-pch - Copy (6).cpp
-pch - Copy (5).cpp
-pch - Copy (4).cpp
-pch - Copy (3).cpp
-pch - Copy (2).cpp
-pch - Copy.cpp
-pch__.cpp
-pch____.cpp
-pch_test.cpp
-pch_OLD.cpp
-pch_Shaders.cpp
 
 #Folders
 Debug/
-glm/
 Release/
 x64/
 .vs/
+CMakeFiles/

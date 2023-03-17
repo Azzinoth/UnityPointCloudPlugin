@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "undoManager.h"
 
-undoManager* undoManager::_instance = nullptr;
+undoManager* undoManager::Instance = nullptr;
 
 undoManager::undoManager()
 {
@@ -14,26 +14,38 @@ undoManager::~undoManager()
 void undoManager::addAction(action* newAction)
 {
 	undoActions.push_back(newAction);
+
+	LOG.Add("undoManager::addAction was called", "undoActions");
+	LOG.Add("newAction->type: " + newAction->type, "undoActions");
 }
 
 void undoManager::undo(int actionsToUndo)
 {
-	if (undoActions.size() == 0 || actionsToUndo <= 0 || actionsToUndo > undoActions.size())
+	LOG.Add("undoManager::undo was called", "undoActions");
+	LOG.Add("actionsToUndo: " + std::to_string(actionsToUndo), "undoActions");
+	LOG.Add("undoActions.size(): " + std::to_string(undoActions.size()), "undoActions");
+
+	if (actionsToUndo > undoActions.size())
+	{
+		LOG.Add("actionsToUndo > undoActions.size()", "undoActions");
+		actionsToUndo = undoActions.size();
+	}
+
+	if (undoActions.size() == 0 || actionsToUndo <= 0 )
 		return;
 
 	pointCloud* currentPointCloud = nullptr;
 	currentPointCloud = undoActions.back()->affectedPointCloud;
 
-	LOG.addToLog("currentPointCloud ID: " + currentPointCloud->ID, "undoActions");
+	//LOG.Add("currentPointCloud ID: " + currentPointCloud->ID, "undoActions");
 	if (currentPointCloud == nullptr)
 		return;
 
 	// Take original data.
-	std::vector<MeshVertex> copyOfOriginalData = currentPointCloud->originalData;
-
+	std::vector<VertexData> copyOfOriginalData = currentPointCloud->originalData;
+	
 	for (size_t i = undoActions.size() - 1; i >= 0; i--)
 	{
-		LOG.addToLog("i was : " + std::to_string(i), "undoActions");
 		if (undoActions[i]->affectedPointCloud != currentPointCloud)
 			continue;
 
@@ -47,7 +59,7 @@ void undoManager::undo(int actionsToUndo)
 	{
 		if (undoActions[i]->affectedPointCloud == currentPointCloud)
 		{
-			undoInternal(undoActions[i], copyOfOriginalData);
+			ReApply(undoActions[i], copyOfOriginalData);
 		}
 	}
 
@@ -55,7 +67,7 @@ void undoManager::undo(int actionsToUndo)
 	currentPointCloud->vertexInfo = copyOfOriginalData;
 
 	// Update GPU buffer.
-	const int kVertexSize = 12 + 4;
+	const int kVertexSize = sizeof(VertexData);
 	ID3D11DeviceContext* ctx = NULL;
 
 	if (GPU.getDevice() != nullptr)
@@ -68,35 +80,46 @@ void undoManager::undo(int actionsToUndo)
 	ctx->UpdateSubresource(currentPointCloud->mainVB, 0, NULL, currentPointCloud->vertexInfo.data(), currentPointCloud->getPointCount() * kVertexSize, currentPointCloud->getPointCount() * kVertexSize);
 #endif // USE_COMPUTE_SHADER
 
+	ctx->Release();
 	undoActionWasApplied = true;
 }
 
-void undoManager::undoInternal(action* actionToUndo, std::vector<MeshVertex>& originalData)
+void undoManager::ReApply(action* actionToUndo, std::vector<VertexData>& originalData)
 {
 	pointCloud* currentPointCloud = actionToUndo->affectedPointCloud;
 
 	std::vector<int> deletedPoints;
-	if (actionToUndo->type == "deleteAction")
+	if (actionToUndo->type == "deleteAction" || actionToUndo->type == "changeClassificationAction")
 	{
-		LOG.addToLog("Brush location: ", reinterpret_cast<deleteAction*>(actionToUndo)->center, "undoActions");
-		LOG.addToLog("Brush size: " + std::to_string(reinterpret_cast<deleteAction*>(actionToUndo)->radius), "undoActions");
+		LOG.Add("Brush location: " + vec3ToString(reinterpret_cast<deleteAction*>(actionToUndo)->center), "undoActions");
+		LOG.Add("Brush size: " + std::to_string(reinterpret_cast<deleteAction*>(actionToUndo)->radius), "undoActions");
 
 		currentPointCloud->getSearchOctree()->searchForObjects(reinterpret_cast<deleteAction*>(actionToUndo)->center,
 															   reinterpret_cast<deleteAction*>(actionToUndo)->radius, deletedPoints);
 
-		LOG.addToLog("pointsToDelete size: " + std::to_string(deletedPoints.size()), "undoActions");
+		LOG.Add("PointnsInSphere size: " + std::to_string(deletedPoints.size()), "undoActions");
 	}
 	else if (actionToUndo->type == "deleteOutliersAction")
 	{
 		deletedPoints = reinterpret_cast<deleteOutliersAction*>(actionToUndo)->outliersIndexes;
-		LOG.addToLog("deletedPoints size: " + std::to_string(deletedPoints.size()), "undoActions");
+		LOG.Add("deletedPoints size: " + std::to_string(deletedPoints.size()), "undoActions");
 	}
 
-	for (size_t i = 0; i < deletedPoints.size(); i++)
+	if (actionToUndo->type == "deleteAction" || actionToUndo->type == "deleteOutliersAction")
 	{
-		originalData[deletedPoints[i]].position[0] = DELETED_POINTS_COORDINATE;
-		originalData[deletedPoints[i]].position[1] = DELETED_POINTS_COORDINATE;
-		originalData[deletedPoints[i]].position[2] = DELETED_POINTS_COORDINATE;
+		for (size_t i = 0; i < deletedPoints.size(); i++)
+		{
+			originalData[deletedPoints[i]].position[0] = DELETED_POINTS_COORDINATE;
+			originalData[deletedPoints[i]].position[1] = DELETED_POINTS_COORDINATE;
+			originalData[deletedPoints[i]].position[2] = DELETED_POINTS_COORDINATE;
+		}
+	}
+	else if (actionToUndo->type == "changeClassificationAction")
+	{
+		for (size_t i = 0; i < deletedPoints.size(); i++)
+		{
+			originalData[deletedPoints[i]].classification = reinterpret_cast<changeClassificationAction*>(actionToUndo)->newClassification;
+		}
 	}
 }
 

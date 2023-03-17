@@ -38,6 +38,23 @@ struct deleteOutliersAction : public action
 	};
 };
 
+struct changeClassificationAction : public action
+{
+	glm::vec3 center;
+	float radius;
+	int newClassification;
+
+	changeClassificationAction() {};
+	changeClassificationAction(glm::vec3 center, float radius, pointCloud* AffectedPointCloud, int newClassification)
+	{
+		this->type = "changeClassificationAction";
+		this->center = center;
+		this->radius = radius;
+		this->affectedPointCloud = AffectedPointCloud;
+		this->newClassification = newClassification;
+	};
+};
+
 class undoManager
 {
 public:
@@ -52,7 +69,7 @@ public:
 private:
 	SINGLETON_PRIVATE_PART(undoManager)
 
-	void undoInternal(action* actionToUndo, std::vector<MeshVertex>& originalData);
+	void ReApply(action* actionToUndo, std::vector<VertexData>& originalData);
 	std::vector<action*> undoActions;
 };
 

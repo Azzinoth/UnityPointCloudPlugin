@@ -45,8 +45,8 @@ void RunComputeShader(ID3D11DeviceContext* pd3dImmediateContext,
 {
 	if (GetTickCount() - timeLastTimeCall < 20)
 	{
-		//LOG.addToLog("denial RequestToDeleteFromUnity", "deleteEvents");
-		//LOG.addToLog("time: " + std::to_string(GetTickCount() - timeLastTimeCall), "deleteEvents");
+		//LOG.Add("denial RequestToDeleteFromUnity", "deleteEvents");
+		//LOG.Add("time: " + std::to_string(GetTickCount() - timeLastTimeCall), "deleteEvents");
 		return;
 	}
 	timeLastTimeCall = GetTickCount();
@@ -85,7 +85,7 @@ void compileAndCreateComputeShader(ID3D11Device* pDevice, BYTE* source, ID3D11Co
 	
 	if (FAILED(shaderResult))
 	{
-		LOG.addToLog("shaderResult: " + std::system_category().message(shaderResult), "computeShader");
+		LOG.Add("shaderResult: " + std::system_category().message(shaderResult), "computeShader");
 	}
 }
 
@@ -108,10 +108,10 @@ void compileAndCreateComputeShader(ID3D11Device* pDevice, std::string sourceFile
 
 	if (FAILED(shaderResult))
 	{
-		LOG.addToLog("shaderResult: " + std::system_category().message(shaderResult), "computeShader");
+		LOG.Add("shaderResult: " + std::system_category().message(shaderResult), "computeShader");
 		if (errorBlob)
 		{
-			LOG.addToLog("shaderResult: " + std::string((char*)errorBlob->GetBufferPointer()), "computeShader");
+			LOG.Add("shaderResult: " + std::string((char*)errorBlob->GetBufferPointer()), "computeShader");
 			errorBlob->Release();
 		}
 
@@ -120,7 +120,7 @@ void compileAndCreateComputeShader(ID3D11Device* pDevice, std::string sourceFile
 	}
 
 	shaderResult = pDevice->CreateComputeShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &*computeShader);
-	LOG.addToLog("pDevice->CreateComputeShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &computeShader): " + std::system_category().message(shaderResult), "computeShader");
+	LOG.Add("pDevice->CreateComputeShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &computeShader): " + std::system_category().message(shaderResult), "computeShader");
 	shaderBlob->Release();
 }
 
@@ -151,8 +151,10 @@ int getComputeShaderResultCounter(ID3D11Device* pDevice, ID3D11UnorderedAccessVi
 	std::string c_ = std::to_string(*counter);
 	int result = atoi(c_.c_str());
 
-	//LOG.addToLog("counter_: " + std::to_string(test), "computeShader");
+	//LOG.Add("counter_: " + std::to_string(test), "computeShader");
 	ctx->Unmap(buffer, 0);
+
+	ctx->Release();
 
 	return result;
 }
@@ -175,10 +177,10 @@ computeShaderWrapper::computeShaderWrapper(ID3D11Device* pDevice, std::string so
 
 	if (FAILED(shaderResult))
 	{
-		LOG.addToLog("D3DCompileFromFile result: " + std::system_category().message(shaderResult), "computeShaderWrapper");
+		LOG.Add("D3DCompileFromFile result: " + std::system_category().message(shaderResult), "computeShaderWrapper");
 		if (errorBlob)
 		{
-			LOG.addToLog("D3DCompileFromFile msg: " + std::string((char*)errorBlob->GetBufferPointer()), "computeShaderWrapper");
+			LOG.Add("D3DCompileFromFile msg: " + std::string((char*)errorBlob->GetBufferPointer()), "computeShaderWrapper");
 			errorBlob->Release();
 		}
 
@@ -187,7 +189,7 @@ computeShaderWrapper::computeShaderWrapper(ID3D11Device* pDevice, std::string so
 	}
 
 	shaderResult = pDevice->CreateComputeShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &shader);
-	LOG.addToLog("CreateComputeShader result: " + std::system_category().message(shaderResult), "computeShaderWrapper");
+	LOG.Add("CreateComputeShader result: " + std::system_category().message(shaderResult), "computeShaderWrapper");
 	shaderBlob->Release();
 }
 
