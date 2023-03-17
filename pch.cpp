@@ -21,7 +21,7 @@ std::string getVersion()
 	return result;
 }
 
-static std::string currentVersion = "version 2022.12.1.24606";
+static std::string currentVersion = "version 2023.2.10.17535";
 
 static ID3D11Buffer* m_CB = nullptr;
 static ID3D11VertexShader* m_VertexShader;
@@ -105,133 +105,99 @@ void WorkOnRequests()
 {
 	LOG.Add("WorkOnRequests() got called", "WorkOnRequests");
 
-	RenderingThreadLocalCopy = ModificationRequests;
-	ModificationRequests.clear();
+	if (MainRequest.bFulfilled)
+		return;
 
-	LOG.Add("before loop", "WorkOnRequests");
+	ModificationRequest MainRequestLocalCopy;
+	MainRequestLocalCopy = MainRequest;
+	MainRequest.bFulfilled = true;
 
-	for (size_t i = 0; i < RenderingThreadLocalCopy.size(); i++)
+	LOG.Add("Before loop", "WorkOnRequests");
+
+	for (size_t j = 0; j < pointClouds.size(); j++)
 	{
-		RenderingThreadLocalCopy[i].Result = 0;
-#ifdef USE_COMPUTE_SHADER
+		if (!pointClouds[j]->wasFullyLoaded)
+			continue;
 
-		deletionSpherePosition = glm::vec3(center[0], center[1], center[2]);
-		deletionSphereSize = size / 2.0f;
+		glm::vec3 localPosition = glm::inverse(glm::transpose(pointClouds[j]->worldMatrix)) * glm::vec4(MainRequestLocalCopy.Center, 1.0f);
+		float extractedScale = glm::length(glm::transpose(pointClouds[j]->worldMatrix)[0]);
+		MainRequestLocalCopy.Size /= extractedScale;
 
-		for (size_t j = 0; j < pointClouds.size(); j++)
+		if (pointClouds[j]->getSearchOctree()->isInOctreeBound(localPosition, MainRequestLocalCopy.Size))
 		{
-			if (!pointClouds[i]->wasFullyLoaded)
-				continue;
-
-			glm::vec3 localPosition = glm::inverse(glm::transpose(pointClouds[i]->worldMatrix)) * glm::vec4(deletionSpherePosition, 1.0f);
-			float extractedScale = glm::length(glm::transpose(pointClouds[i]->worldMatrix)[0]);
-			size /= extractedScale;
-
-			if (pointClouds[i]->getSearchOctree()->isInOctreeBound(localPosition, size))
-			{
-				//pointClouds[i]->getSearchOctree()->deleteObjects(localPosition, size);
-				//pointClouds[i]->deletionOccuredThisFrame = true;
-
-				runMyDeleteComputeShader(pointClouds[i]);
-
-				UNDO_MANAGER.addAction(new deleteAction(localPosition, size, pointClouds[i]));
-				//anyPointWasDeleted = true;
-			}
-
-			/*if (pointClouds[i]->getSearchOctree()->PointnsInSphere.size() > 0)
-			{
-				UNDO_MANAGER.addAction(new deleteAction(localPosition, size, pointClouds[i]));
-
-				LOG.Add("==============================================================", "deleteEvents");
-				LOG.Add("Brush location: ", localPosition, "deleteEvents");
-				LOG.Add("Brush size: " + std::to_string(size), "deleteEvents");
-				LOG.Add("PointnsInSphere size: " + std::to_string(pointClouds[i]->getSearchOctree()->PointnsInSphere.size()), "deleteEvents");
-
-				anyPointWasDeleted = true;
-			}*/
-}
-#else
-		for (size_t j = 0; j < pointClouds.size(); j++)
-		{
-			if (!pointClouds[j]->wasFullyLoaded)
-				continue;
-
-			glm::vec3 localPosition = glm::inverse(glm::transpose(pointClouds[j]->worldMatrix)) * glm::vec4(RenderingThreadLocalCopy[i].Center, 1.0f);
-			float extractedScale = glm::length(glm::transpose(pointClouds[j]->worldMatrix)[0]);
-			RenderingThreadLocalCopy[i].Size /= extractedScale;
-
-			if (pointClouds[j]->getSearchOctree()->isInOctreeBound(localPosition, RenderingThreadLocalCopy[i].Size))
-			{
-				pointClouds[j]->getSearchOctree()->searchForObjects(localPosition, RenderingThreadLocalCopy[i].Size, pointClouds[j]->getSearchOctree()->PointnsInSphere);
-			}
-
-			if (pointClouds[j]->getSearchOctree()->PointnsInSphere.size() > 0)
-			{
-				bDeletionResultCountInProgress = true;
-				LastResults.push_back(0);
-
-				if (RenderingThreadLocalCopy[i].TypeOfModification == 0)
-				{
-					LOG.Add("==============================================================", "deleteEvents");
-					LOG.Add("Brush location: " + vec3ToString(localPosition), "deleteEvents");
-					LOG.Add("Brush size: " + std::to_string(RenderingThreadLocalCopy[i].Size), "deleteEvents");
-					LOG.Add("PointnsInSphere size: " + std::to_string(pointClouds[j]->getSearchOctree()->PointnsInSphere.size()), "deleteEvents");
-
-					octree* currentOctree = pointClouds[j]->getSearchOctree();
-					for (size_t k = 0; k < currentOctree->PointnsInSphere.size(); k++)
-					{
-						if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].position[0] != DELETED_POINTS_COORDINATE &&
-							pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].position[1] != DELETED_POINTS_COORDINATE &&
-							pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].position[2] != DELETED_POINTS_COORDINATE)
-						{
-							RenderingThreadLocalCopy[i].Result++;
-							ModificationResults[RenderingThreadLocalCopy[i].ID]++;
-							
-							LastResults.back()++;
-							LastResult++;
-						}
-					}
-
-					// Unity part counts undo based on LastResult
-					if (LastResults.back() > 0)
-					{
-						LOG.Add("LastResult = " + std::to_string(LastResults.back()), "deleteEvents");
-						LOG.Add("UNDO_MANAGER.addAction", "deleteEvents");
-
-						UNDO_MANAGER.addAction(new deleteAction(localPosition, RenderingThreadLocalCopy[i].Size, pointClouds[j]));
-					}
-				}
-				else if (RenderingThreadLocalCopy[i].TypeOfModification == 1)
-				{
-					octree* currentOctree = pointClouds[j]->getSearchOctree();
-					for (size_t k = 0; k < currentOctree->PointnsInSphere.size(); k++)
-					{
-						if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].classification != RenderingThreadLocalCopy[i].AdditionalData)
-						{
-							RenderingThreadLocalCopy[i].Result++;
-							ModificationResults[RenderingThreadLocalCopy[i].ID]++;
-
-							LastResults.back()++;
-							LastResult++;
-						}
-					}
-				}
-
-				bDeletionResultCountInProgress = false;
-
-				ID3D11DeviceContext* ctx = NULL;
-				GPU.getDevice()->GetImmediateContext(&ctx);
-				ApplyPoindModificationRequest(pointClouds[j], ctx, RenderingThreadLocalCopy[i]);
-				ctx->Release();
-			}
+			pointClouds[j]->getSearchOctree()->searchForObjects(localPosition, MainRequestLocalCopy.Size, pointClouds[j]->getSearchOctree()->PointnsInSphere);
 		}
 
-#endif // USE_COMPUTE_SHADER
+		if (pointClouds[j]->getSearchOctree()->PointnsInSphere.size() > 0)
+		{
+			bDeletionResultCountInProgress = true;
+			LOG.Add("bDeletionResultCountInProgress = true", "deleteEvents");
 
-		//requestToDelete = true;
+			LastResults.push_back(0);
+
+			if (MainRequestLocalCopy.TypeOfModification == 0)
+			{
+				LOG.Add("==============================================================", "deleteEvents");
+				LOG.Add("Brush location: " + vec3ToString(localPosition), "deleteEvents");
+				LOG.Add("Brush size: " + std::to_string(MainRequestLocalCopy.Size), "deleteEvents");
+				LOG.Add("PointnsInSphere size: " + std::to_string(pointClouds[j]->getSearchOctree()->PointnsInSphere.size()), "deleteEvents");
+
+				octree* currentOctree = pointClouds[j]->getSearchOctree();
+				for (size_t k = 0; k < currentOctree->PointnsInSphere.size(); k++)
+				{
+					if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].position[0] != DELETED_POINTS_COORDINATE &&
+						pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].position[1] != DELETED_POINTS_COORDINATE &&
+						pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].position[2] != DELETED_POINTS_COORDINATE)
+					{
+						MainRequestLocalCopy.Result++;
+							
+						LastResults.back()++;
+						//LastResult++;
+					}
+				}
+
+				// Unity part counts undo based on LastResult
+				if (LastResults.back() > 0)
+				{
+					LOG.Add("LastResult = " + std::to_string(LastResults.back()), "deleteEvents");
+					LOG.Add("UNDO_MANAGER.addAction", "deleteEvents");
+
+					UNDO_MANAGER.addAction(new deleteAction(localPosition, MainRequestLocalCopy.Size, pointClouds[j]));
+				}
+			}
+			else if (MainRequestLocalCopy.TypeOfModification == 1)
+			{
+				octree* currentOctree = pointClouds[j]->getSearchOctree();
+				for (size_t k = 0; k < currentOctree->PointnsInSphere.size(); k++)
+				{
+					if (pointClouds[j]->vertexInfo[currentOctree->PointnsInSphere[k]].classification != MainRequestLocalCopy.AdditionalData)
+					{
+						MainRequestLocalCopy.Result++;
+
+						LastResults.back()++;
+						//LastResult++;
+					}
+				}
+
+				// Unity part counts undo based on LastResult
+				if (LastResults.back() > 0)
+				{
+					LOG.Add("LastResult = " + std::to_string(LastResults.back()), "deleteEvents");
+					LOG.Add("UNDO_MANAGER.addAction", "deleteEvents");
+
+					UNDO_MANAGER.addAction(new changeClassificationAction(localPosition, MainRequestLocalCopy.Size, pointClouds[j], MainRequestLocalCopy.AdditionalData));
+				}
+			}
+
+			bDeletionResultCountInProgress = false;
+			LOG.Add("bDeletionResultCountInProgress = false", "deleteEvents");
+
+			ID3D11DeviceContext* ctx = NULL;
+			GPU.getDevice()->GetImmediateContext(&ctx);
+			ApplyPoindModificationRequest(pointClouds[j], ctx, MainRequestLocalCopy);
+			ctx->Release();
+		}
 	}
-
-	RenderingThreadLocalCopy.clear();
 }
 
 static string NextTextToSend = "";
@@ -327,14 +293,14 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API getNewUniqueID(int* I
 	}
 }
 
-void AsynOpenLAZFileFromUnity(char* filePath, char* ID)
+bool AsynOpenLAZFileFromUnity(char* filePath, char* ID)
 {
 	LOG.Add(std::string("File name: ") + filePath, "File_Load_Log");
 
 	if (strlen(filePath) < 4)
 	{
 		LOG.Add(std::string("Call of AsynOpenLAZFileFromUnity can't be executed because file name is incorrect: ") + filePath, "ERRORS");
-		return;
+		return false;
 	}
 
 	// if file is in our own format we will not need dll functionality
@@ -343,14 +309,22 @@ void AsynOpenLAZFileFromUnity(char* filePath, char* ID)
 		if (!DLLWasLoadedCorrectly)
 		{
 			LOG.Add("Call of AsynOpenLAZFileFromUnity can't be executed because DLL was not loaded correctly", "ERRORS");
-			return;
+			return false;
 		}
+	}
+
+	if (!SaveManager::getInstance().isSaveDone())
+	{
+		LOG.Add("Call of AsynOpenLAZFileFromUnity can't be executed because save job is running.", "ERRORS");
+		return false;
 	}
 
 	pointCloud* temp = new pointCloud();
 	temp->ID = ID;
 	LoadManager::getInstance().loadPointCloudAsync(std::string(filePath), projectPath, temp);
 	pointClouds.push_back(temp);
+
+	return true;
 }
 
 extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OpenLAZFileFromUnity(char* filePath, char* ID)
@@ -373,8 +347,7 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OpenLAZFileFromUnity(
 		}
 	}
 
-	AsynOpenLAZFileFromUnity(filePath, ID);
-	return true;
+	return AsynOpenLAZFileFromUnity(filePath, ID);
 }
 
 extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ValidatePointCloudGMFromUnity(char* filePath, char* pointCloudID)
@@ -407,7 +380,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnSceneStartFromUnity
 	LOG.DisableTopicFileOutput("camera");
 	LOG.DisableTopicFileOutput("precision");
 	LOG.DisableTopicFileOutput("screens");
-	LOG.DisableTopicFileOutput("renderLog");
+	//LOG.DisableTopicFileOutput("renderLog");
 	LOG.DisableTopicFileOutput("Threads");
 
 	if (THREAD_POOL.GetThreadCount() == 0)
@@ -499,6 +472,12 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SaveToLAZFileFromUnit
 	if (getPointCloud(pointCloudID) == nullptr)
 	{
 		LOG.Add("Call of SaveToLAZFileFromUnity can't be executed because pointCloud can't be found", "ERRORS");
+		return false;
+	}
+
+	if (!LoadManager::getInstance().isLoadingDone())
+	{
+		LOG.Add("Call of SaveToLAZFileFromUnity can't be executed because loading job is running.", "ERRORS");
 		return false;
 	}
 
@@ -886,23 +865,33 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API RequestToModifyPoints
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateModificationParameters(float* Center, float Size, int TypeOfModification, float AdditionalData)
 {
-	/*MainRequest.Center = glm::vec3(Center[0], Center[1], Center[2]);
-	MainRequest.Size = Size;
-	MainRequest.TypeOfModification = TypeOfModification;
-	MainRequest.AdditionalData = AdditionalData;
-	MainRequest.Result = 0;*/
+	LOG.Add("UpdateModificationParameters was called", "UpdateModificationParameters");
 
-	ModificationRequests.clear();
+	bool expected = false;
+	if (!bDeletionResultCountInProgress.compare_exchange_strong(expected, false))
+	{
+		LOG.Add("bDeletionResultCountInProgress is true", "UpdateModificationParameters");
+	}
+	else
+	{
+		/*ModificationRequests.clear();
 
-	ModificationRequest NewRequest;
-	NewRequest.Center = glm::vec3(Center[0], Center[1], Center[2]);
-	NewRequest.Size = Size;
-	NewRequest.TypeOfModification = TypeOfModification;
-	NewRequest.AdditionalData = AdditionalData;
-	
-	ModificationRequests.push_back(NewRequest);
+		ModificationRequest NewRequest;
+		NewRequest.Center = glm::vec3(Center[0], Center[1], Center[2]);
+		NewRequest.Size = Size;
+		NewRequest.TypeOfModification = TypeOfModification;
+		NewRequest.AdditionalData = AdditionalData;
 
-	LOG.Add("UpdateModificationParameters was called", "LOOK HERE");
+		ModificationRequests.push_back(NewRequest);*/
+
+		MainRequest.Center = glm::vec3(Center[0], Center[1], Center[2]);
+		MainRequest.Size = Size;
+		MainRequest.TypeOfModification = TypeOfModification;
+		MainRequest.AdditionalData = AdditionalData;
+		MainRequest.bFulfilled = false;
+
+		LOG.Add("bDeletionResultCountInProgress is false", "UpdateModificationParameters");
+	}
 }
 
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRequestResult(/*char* RequestID*/)

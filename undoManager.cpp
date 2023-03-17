@@ -43,11 +43,9 @@ void undoManager::undo(int actionsToUndo)
 
 	// Take original data.
 	std::vector<VertexData> copyOfOriginalData = currentPointCloud->originalData;
-
 	
 	for (size_t i = undoActions.size() - 1; i >= 0; i--)
 	{
-		//LOG.Add("i was : " + std::to_string(i), "undoActions");
 		if (undoActions[i]->affectedPointCloud != currentPointCloud)
 			continue;
 
@@ -61,7 +59,7 @@ void undoManager::undo(int actionsToUndo)
 	{
 		if (undoActions[i]->affectedPointCloud == currentPointCloud)
 		{
-			undoInternal(undoActions[i], copyOfOriginalData);
+			ReApply(undoActions[i], copyOfOriginalData);
 		}
 	}
 
@@ -86,12 +84,12 @@ void undoManager::undo(int actionsToUndo)
 	undoActionWasApplied = true;
 }
 
-void undoManager::undoInternal(action* actionToUndo, std::vector<VertexData>& originalData)
+void undoManager::ReApply(action* actionToUndo, std::vector<VertexData>& originalData)
 {
 	pointCloud* currentPointCloud = actionToUndo->affectedPointCloud;
 
 	std::vector<int> deletedPoints;
-	if (actionToUndo->type == "deleteAction")
+	if (actionToUndo->type == "deleteAction" || actionToUndo->type == "changeClassificationAction")
 	{
 		LOG.Add("Brush location: " + vec3ToString(reinterpret_cast<deleteAction*>(actionToUndo)->center), "undoActions");
 		LOG.Add("Brush size: " + std::to_string(reinterpret_cast<deleteAction*>(actionToUndo)->radius), "undoActions");
@@ -107,11 +105,21 @@ void undoManager::undoInternal(action* actionToUndo, std::vector<VertexData>& or
 		LOG.Add("deletedPoints size: " + std::to_string(deletedPoints.size()), "undoActions");
 	}
 
-	for (size_t i = 0; i < deletedPoints.size(); i++)
+	if (actionToUndo->type == "deleteAction" || actionToUndo->type == "deleteOutliersAction")
 	{
-		originalData[deletedPoints[i]].position[0] = DELETED_POINTS_COORDINATE;
-		originalData[deletedPoints[i]].position[1] = DELETED_POINTS_COORDINATE;
-		originalData[deletedPoints[i]].position[2] = DELETED_POINTS_COORDINATE;
+		for (size_t i = 0; i < deletedPoints.size(); i++)
+		{
+			originalData[deletedPoints[i]].position[0] = DELETED_POINTS_COORDINATE;
+			originalData[deletedPoints[i]].position[1] = DELETED_POINTS_COORDINATE;
+			originalData[deletedPoints[i]].position[2] = DELETED_POINTS_COORDINATE;
+		}
+	}
+	else if (actionToUndo->type == "changeClassificationAction")
+	{
+		for (size_t i = 0; i < deletedPoints.size(); i++)
+		{
+			originalData[deletedPoints[i]].classification = reinterpret_cast<changeClassificationAction*>(actionToUndo)->newClassification;
+		}
 	}
 }
 

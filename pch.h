@@ -27,13 +27,15 @@ struct ModificationRequest
 	float AdditionalData;
 
 	int Result = 0;
+	bool bFulfilled = false;
 };
 
-static std::unordered_map<std::string, int> ModificationResults;
-static std::vector<ModificationRequest> ModificationRequests;
-static std::vector<ModificationRequest> RenderingThreadLocalCopy;
+static ModificationRequest MainRequest;
+
+//static std::vector<ModificationRequest> ModificationRequests;
+//static std::vector<ModificationRequest> RenderingThreadLocalCopy;
 static std::vector<int> LastResults;
-static int LastResult = 0;
+//static int LastResult = 0;
 
 static std::atomic<bool> bDeletionResultCountInProgress = false;
 
@@ -65,7 +67,7 @@ void VS(float3 pos : POSITION, float4 color : COLOR, uint classification : CLASS
 	//if (distance(CameraPosition, WorldPosition) > additionalFloat.x)
 		//FinalColor = float4(1, 0, 0, 1);
 
-	if (additionalFloat.x == 1)
+	if (additionalFloat.x == 1 && classification != 0)
 	{
 		for (int i = 0; i < 512; i++)
 		{

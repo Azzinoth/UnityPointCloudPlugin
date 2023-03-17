@@ -952,6 +952,97 @@ void LoadManager::ExtractLazLasHeaderInfo(pointCloud* PointCloud, laszip_header*
 
 SaveManager* SaveManager::Instance = nullptr;
 
+class LASattribute
+{
+public:
+	unsigned char reserved[2];   // 2 bytes
+	unsigned char data_type;     // 1 byte
+	unsigned char options;       // 1 byte
+	char name[32];			     // 32 bytes
+	unsigned char unused[4];     // 4 bytes
+	double/*U64I64F64*/ no_data[3]; // 24 = 3*8 bytes
+	double/*U64I64F64*/ min[3];     // 24 = 3*8 bytes
+	double/*U64I64F64*/ max[3];     // 24 = 3*8 bytes
+	double scale[3];             // 24 = 3*8 bytes
+	double offset[3];            // 24 = 3*8 bytes
+	char description[32];        // 32 bytes
+};
+
+bool DoesHaveClassification(pointCloud* PointCloud)
+{
+	bool bHaveClassification = false;
+	for (size_t i = 0; i < PointCloud->getPointCount(); i++)
+	{
+		if (PointCloud->vertexInfo[i].position[0] != DELETED_POINTS_COORDINATE &&
+			PointCloud->vertexInfo[i].position[1] != DELETED_POINTS_COORDINATE &&
+			PointCloud->vertexInfo[i].position[2] != DELETED_POINTS_COORDINATE)
+		{
+			if (PointCloud->vertexInfo[i].classification != 0)
+			{
+				bHaveClassification = true;
+				break;
+			}
+		}
+	}
+
+	return bHaveClassification;
+}
+
+bool DoesHaveExtraBytes(pointCloud* PointCloud)
+{
+	return PointCloud->loadedFrom->LAZpoints[0].num_extra_bytes == 0;
+}
+
+void ConvertHeader(laszip_POINTER laszip_writer, laszip_header* Header)
+{
+	Header->version_minor = 4;
+	Header->point_data_record_length += 2;
+
+	Header->header_size += 148;
+	Header->offset_to_point_data += 148;
+
+	Header->extended_number_of_point_records = Header->number_of_point_records;
+	Header->number_of_point_records = 0;
+
+	for (size_t i = 0; i < 5; i++)
+	{
+		Header->extended_number_of_points_by_return[i] = Header->number_of_points_by_return[i];
+		Header->number_of_points_by_return[i] = 0;
+	}
+
+	LASattribute* Data = new LASattribute;
+	int TestSize = sizeof(LASattribute);
+
+	unsigned char Zero = '\0';
+	memcpy(Data->reserved, &Zero, 1);
+	Data->data_type = 3;
+	Data->options = '\0';
+	strcpy(Data->name, "Custom Attribute\0");
+	memcpy(Data->unused, &Zero, 1);
+	Data->no_data[0] = 0;
+	Data->no_data[1] = 0;
+	Data->no_data[2] = 0;
+
+	Data->min[0] = 0;
+	Data->min[1] = 0;
+	Data->min[2] = 0;
+
+	Data->max[0] = 0;
+	Data->max[1] = 0;
+	Data->max[2] = 0;
+
+	Data->scale[0] = 0;
+	Data->scale[1] = 0;
+	Data->scale[2] = 0;
+
+	Data->offset[0] = 0;
+	Data->offset[1] = 0;
+	Data->offset[2] = 0;
+
+	laszip_set_header(laszip_writer, Header);
+	auto Result = laszip_add_vlr(laszip_writer, "LASF_Spec\0\0\0\0\0\0", 4, sizeof(LASattribute), "Extra Bytes Record\0", (unsigned char*)Data);
+}
+
 void SaveManager::SaveFunc(void* InputData, void* OutputData)
 {
 	InfoForSaving* Info = reinterpret_cast<InfoForSaving*>(InputData);
@@ -1034,7 +1125,7 @@ void SaveManager::SaveFunc(void* InputData, void* OutputData)
 				 Path[Path.size() - 2] == 'p' &&
 				 Path[Path.size() - 1] == 'c')
 		{
-
+			
 		}
 		else
 		{
@@ -1054,10 +1145,22 @@ void SaveManager::SaveFunc(void* InputData, void* OutputData)
 					pointsToWrite++;
 			}
 
+			LOG.Add("pointsToWrite : " + std::to_string(pointsToWrite), "SAVE");
+
 			PointCloud->loadedFrom->header.number_of_point_records = pointsToWrite;
-			if (laszip_set_header(laszip_writer, &PointCloud->loadedFrom->header))
+			bool bHaveClassification = DoesHaveClassification(PointCloud);
+			bool bExtraBytesWasNull = DoesHaveExtraBytes(PointCloud);
+
+			if (bHaveClassification && bExtraBytesWasNull)
 			{
-				LOG.Add("setting header for laszip writer failed", "DLL_ERRORS");
+				ConvertHeader(laszip_writer, &PointCloud->loadedFrom->header);
+			}
+			else
+			{
+				if (laszip_set_header(laszip_writer, &PointCloud->loadedFrom->header))
+				{
+					LOG.Add("setting header for laszip writer failed", "DLL_ERRORS");
+				}
 			}
 
 			std::string fileName = Path;
@@ -1074,34 +1177,45 @@ void SaveManager::SaveFunc(void* InputData, void* OutputData)
 				return;
 			}
 
+			int BytesCount = 0;
+			static unsigned char* Old = nullptr;
+			if (bHaveClassification && bExtraBytesWasNull)
+			{
+				BytesCount = 2;
+				Old = new unsigned char[BytesCount];
+			}
+
 			for (size_t j = 0; j < PointCloud->getPointCount(); j++)
 			{
 				if (PointCloud->vertexInfo[j].position[0] != DELETED_POINTS_COORDINATE &&
 					PointCloud->vertexInfo[j].position[1] != DELETED_POINTS_COORDINATE &&
 					PointCloud->vertexInfo[j].position[2] != DELETED_POINTS_COORDINATE)
 				{
-					if (PointCloud->vertexInfo[j].classification != int(*(unsigned char*)PointCloud->loadedFrom->LAZpoints[j].extra_bytes))
+					if (bHaveClassification)
 					{
-						static unsigned char* Old = new unsigned char[PointCloud->loadedFrom->LAZpoints[0].num_extra_bytes];
-						//std::copy(PointCloud->loadedFrom->LAZpoints[j].extra_bytes, PointCloud->loadedFrom->LAZpoints[j].extra_bytes + 2, Old)
-						*Old = *PointCloud->loadedFrom->LAZpoints[j].extra_bytes;
-
-						*PointCloud->loadedFrom->LAZpoints[j].extra_bytes = PointCloud->vertexInfo[j].classification;
-						if (laszip_set_point(laszip_writer, &PointCloud->loadedFrom->LAZpoints[j]))
+						if (bExtraBytesWasNull)
 						{
-							LOG.Add("setting point " + std::to_string(j) + " failed", "DLL_ERRORS");
-							return;
+							PointCloud->loadedFrom->LAZpoints[j].user_data = BytesCount;
+							PointCloud->loadedFrom->LAZpoints[j].num_extra_bytes = BytesCount;
+							PointCloud->loadedFrom->LAZpoints[j].extra_bytes = new unsigned char[BytesCount];
 						}
 
-						PointCloud->loadedFrom->LAZpoints[j].classification = *Old;
+						if (!bExtraBytesWasNull)
+							memcpy(Old, PointCloud->loadedFrom->LAZpoints[j].extra_bytes, BytesCount);
+
+						unsigned short TempVariable = PointCloud->vertexInfo[j].classification;
+						memcpy(PointCloud->loadedFrom->LAZpoints[j].extra_bytes, &TempVariable, BytesCount);
 					}
-					else
+
+					if (laszip_set_point(laszip_writer, &PointCloud->loadedFrom->LAZpoints[j]))
 					{
-						if (laszip_set_point(laszip_writer, &PointCloud->loadedFrom->LAZpoints[j]))
-						{
-							LOG.Add("setting point " + std::to_string(j) + " failed", "DLL_ERRORS");
-							return;
-						}
+						LOG.Add("setting point " + std::to_string(j) + " failed", "DLL_ERRORS");
+						return;
+					}
+
+					if (bHaveClassification && !bExtraBytesWasNull)
+					{
+						*PointCloud->loadedFrom->LAZpoints[j].extra_bytes = *Old;
 					}
 
 					if (laszip_write_point(laszip_writer))
