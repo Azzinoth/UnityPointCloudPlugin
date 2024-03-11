@@ -20,7 +20,7 @@ pointCloud::~pointCloud()
 	delete searchOctree;
 	if (mainVB != nullptr)
 		mainVB->Release();
-	if (mainVB != nullptr)
+	if (intermediateVB != nullptr)
 		intermediateVB->Release();
 	delete loadedFrom;
 

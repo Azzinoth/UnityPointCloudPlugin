@@ -43,7 +43,6 @@ struct octreeSearchInfo
 static int deletedCount = 0;
 static const int capacity = 500;
 static float sqrtTwo = sqrt(2.0f);
-static int count = 0;
 static int debugMaxNodeDepth = 0;
 static int debugNodeCount = 0;
 static int debugPointsInserted = 0;
@@ -108,7 +107,7 @@ public:
     float size = 0.0f;
     float diagonal = 0.0f;
     octreeNode* parent;
-    octreeNode** childs;
+    octreeNode** childNodes;
     std::vector<octreeSearchInfo> objects;
     int depth = 0;
     AABB nodeAABB;

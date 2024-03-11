@@ -722,7 +722,6 @@ void LoadManager::LoadLazLas(pointCloud* PointCloud, std::string Path)
 
 	// read the points
 	laszip_U64 p_count = 0;
-	std::vector<VertexData> points;
 	float maxIntensity = -FLT_MAX;
 	int MinClassification = INT_MAX;
 	int MaxClassification = -INT_MAX;
@@ -1011,7 +1010,6 @@ void ConvertHeader(laszip_POINTER laszip_writer, laszip_header* Header)
 	}
 
 	LASattribute* Data = new LASattribute;
-	int TestSize = sizeof(LASattribute);
 
 	unsigned char Zero = '\0';
 	memcpy(Data->reserved, &Zero, 1);
@@ -1061,43 +1059,6 @@ void SaveManager::SaveFunc(void* InputData, void* OutputData)
 			Path[Path.size() - 2] == 'p' &&
 			Path[Path.size() - 1] == 'z'))
 		{
-			/*std::vector<char> RawData;
-			int test = sizeof(double);
-			char* TempArray = new char[sizeof(double)];
-			for (size_t i = 0; i < PointCloud->NumPy->LoadedRawData.size(); i++)
-			{
-				if (PointCloud->vertexInfo[i].position[0] == DELETED_POINTS_COORDINATE &&
-					PointCloud->vertexInfo[i].position[1] == DELETED_POINTS_COORDINATE &&
-					PointCloud->vertexInfo[i].position[2] == DELETED_POINTS_COORDINATE)
-				{
-					continue;
-				}
-
-				TempArray = reinterpret_cast<char*>(&PointCloud->NumPy->LoadedRawData[i].X);
-				for (size_t j = 0; j < sizeof(double); j++)
-				{
-					RawData.push_back(TempArray[j]);
-				}
-
-				TempArray = reinterpret_cast<char*>(&PointCloud->NumPy->LoadedRawData[i].Y);
-				for (size_t j = 0; j < sizeof(double); j++)
-				{
-					RawData.push_back(TempArray[j]);
-				}
-
-				TempArray = reinterpret_cast<char*>(&PointCloud->NumPy->LoadedRawData[i].Z);
-				for (size_t j = 0; j < sizeof(double); j++)
-				{
-					RawData.push_back(TempArray[j]);
-				}
-
-				TempArray = reinterpret_cast<char*>(&PointCloud->NumPy->LoadedRawData[i].Uncertainty);
-				for (size_t j = 0; j < sizeof(double); j++)
-				{
-					RawData.push_back(TempArray[j]);
-				}
-			}*/
-
 			std::vector<double> FinalData;
 
 			for (size_t i = 0; i < PointCloud->NumPy->LoadedRawData.size(); i++)

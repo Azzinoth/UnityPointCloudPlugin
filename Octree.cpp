@@ -6,7 +6,7 @@ octreeNode::octreeNode()
     size = 0.0f;
     center = glm::vec3(0.0f);
     diagonal = 0.0f;
-    childs = nullptr;
+    childNodes = nullptr;
     parent = nullptr;
 }
 
@@ -18,7 +18,7 @@ octreeNode::octreeNode(float Size, glm::vec3 Center, int Depth)
     size = Size;
     center = Center;
     diagonal = sqrtTwo * size;
-    childs = nullptr;
+    childNodes = nullptr;
     parent = nullptr;
     nodeAABB = AABB(Center, Size);
 }
@@ -31,11 +31,11 @@ octreeNode::octreeNode(const octreeNode& ref)
 
     parent = nullptr;
     //parent = ref.parent;
-    if (ref.childs != nullptr)
+    if (ref.childNodes != nullptr)
     {
         for (size_t i = 0; i < 8; i++)
         {
-            childs[i] = ref.childs[i];
+            childNodes[i] = ref.childNodes[i];
         }
     }
     objects = ref.objects;
@@ -45,11 +45,11 @@ octreeNode::octreeNode(const octreeNode& ref)
 
 octreeNode::~octreeNode()
 {
-    if (childs != nullptr)
+    if (childNodes != nullptr)
     {
         for (int i = 0; i < 8; i++)
         {
-            delete childs[i];
+            delete childNodes[i];
             //debugLog::getInstance().addToLog("child " + std::to_string(i) + " was deleted", "OctreeMemory");
         }
     }
@@ -61,33 +61,33 @@ void octreeNode::initChilds()
 #ifdef FULL_LOGGING
     //debugLog::getInstance().addToLog("8 nodes added. In total: " + std::to_string(debugNodeCount), "OctreeEvents");
 #endif
-    childs = new octreeNode * [8];
+    childNodes = new octreeNode * [8];
 
     // upper top left
-    childs[0] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, size / 4.0f, -size / 4.0f), depth + 1);
-    childs[0]->parent = this;
+    childNodes[0] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, size / 4.0f, -size / 4.0f), depth + 1);
+    childNodes[0]->parent = this;
     // upper top right
-    childs[1] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, size / 4.0f, -size / 4.0f), depth + 1);
-    childs[1]->parent = this;
+    childNodes[1] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, size / 4.0f, -size / 4.0f), depth + 1);
+    childNodes[1]->parent = this;
     // upper bottom left
-    childs[2] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, size / 4.0f, size / 4.0f), depth + 1);
-    childs[2]->parent = this;
+    childNodes[2] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, size / 4.0f, size / 4.0f), depth + 1);
+    childNodes[2]->parent = this;
     // upper bottom right
-    childs[3] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, size / 4.0f, size / 4.0f), depth + 1);
-    childs[3]->parent = this;
+    childNodes[3] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, size / 4.0f, size / 4.0f), depth + 1);
+    childNodes[3]->parent = this;
 
     // down top left
-    childs[4] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, -size / 4.0f, -size / 4.0f), depth + 1);
-    childs[4]->parent = this;
+    childNodes[4] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, -size / 4.0f, -size / 4.0f), depth + 1);
+    childNodes[4]->parent = this;
     // down top right
-    childs[5] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, -size / 4.0f, -size / 4.0f), depth + 1);
-    childs[5]->parent = this;
+    childNodes[5] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, -size / 4.0f, -size / 4.0f), depth + 1);
+    childNodes[5]->parent = this;
     // down bottom left
-    childs[6] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, -size / 4.0f, size / 4.0f), depth + 1);
-    childs[6]->parent = this;
+    childNodes[6] = new octreeNode(size / 2.0f, center + glm::vec3(-size / 4.0f, -size / 4.0f, size / 4.0f), depth + 1);
+    childNodes[6]->parent = this;
     // down bottom right
-    childs[7] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, -size / 4.0f, size / 4.0f), depth + 1);
-    childs[7]->parent = this;
+    childNodes[7] = new octreeNode(size / 2.0f, center + glm::vec3(size / 4.0f, -size / 4.0f, size / 4.0f), depth + 1);
+    childNodes[7]->parent = this;
 }
 
 bool octreeNode::addObject(octreeSearchInfo info)
@@ -101,18 +101,18 @@ bool octreeNode::addObject(octreeSearchInfo info)
     }
 #endif
 
-    bool instersect = true;
-    if (info.position.x < nodeAABB.min[0] - 0.01f || info.position.x > nodeAABB.max[0] + 0.01f) instersect = false;
-    if (info.position.y < nodeAABB.min[1] - 0.01f || info.position.y > nodeAABB.max[1] + 0.01f) instersect = false;
-    if (info.position.z < nodeAABB.min[2] - 0.01f || info.position.z > nodeAABB.max[2] + 0.01f) instersect = false;
+    bool bIntersect = true;
+    if (info.position.x < nodeAABB.min[0] - 0.01f || info.position.x > nodeAABB.max[0] + 0.01f) bIntersect = false;
+    if (info.position.y < nodeAABB.min[1] - 0.01f || info.position.y > nodeAABB.max[1] + 0.01f) bIntersect = false;
+    if (info.position.z < nodeAABB.min[2] - 0.01f || info.position.z > nodeAABB.max[2] + 0.01f) bIntersect = false;
 
 #ifdef FULL_LOGGING
     if (info.position.x > 578.1 && info.position.x < 578.3 &&
         info.position.y > -830.4 && info.position.y < -830.32 &&
         info.position.z > 558.5 && info.position.z < 558.9)
     {
-        debugLog::getInstance().addToLog("point was: " + instersect ? "accepted" : "rejected", "OctreeEvents");
-        if (!instersect)
+        debugLog::getInstance().addToLog("point was: " + bIntersect ? "accepted" : "rejected", "OctreeEvents");
+        if (!bIntersect)
         {
             debugLog::getInstance().addToLog("point was: rejected", "OctreeEvents");
             debugLog::getInstance().addToLog("point:", info.position, "OctreeEvents");
@@ -122,20 +122,20 @@ bool octreeNode::addObject(octreeSearchInfo info)
     }
 #endif
 
-    if (objects.size() < capacity && instersect)
+    if (objects.size() < capacity && bIntersect)
     {
         objects.push_back(info);
         debugPointsInserted++;
         return true;
     }
-    else if (instersect)
+    else if (bIntersect)
     {
-        if (childs == nullptr)
+        if (childNodes == nullptr)
             initChilds();
 
         for (int i = 0; i < 8; i++)
         {
-            if (childs[i]->addObject(info))
+            if (childNodes[i]->addObject(info))
                 return true;
         }
     }
@@ -145,12 +145,12 @@ bool octreeNode::addObject(octreeSearchInfo info)
 
 octreeNode* octreeNode::getNodeContaining(glm::vec3 point)
 {
-    bool instersect = true;
-    if (point.x < nodeAABB.min[0] - 0.01f || point.x > nodeAABB.max[0] + 0.01f) instersect = false;
-    if (point.y < nodeAABB.min[1] - 0.01f || point.y > nodeAABB.max[1] + 0.01f) instersect = false;
-    if (point.z < nodeAABB.min[2] - 0.01f || point.z > nodeAABB.max[2] + 0.01f) instersect = false;
+    bool bIntersect = true;
+    if (point.x < nodeAABB.min[0] - 0.01f || point.x > nodeAABB.max[0] + 0.01f) bIntersect = false;
+    if (point.y < nodeAABB.min[1] - 0.01f || point.y > nodeAABB.max[1] + 0.01f) bIntersect = false;
+    if (point.z < nodeAABB.min[2] - 0.01f || point.z > nodeAABB.max[2] + 0.01f) bIntersect = false;
 
-    if (instersect)
+    if (bIntersect)
     {
         for (size_t i = 0; i < objects.size(); i++)
         {
@@ -160,12 +160,12 @@ octreeNode* octreeNode::getNodeContaining(glm::vec3 point)
                 return this;
         }
 
-        if (childs != nullptr)
+        if (childNodes != nullptr)
         {
             for (int i = 0; i < 8; i++)
             {
                 octreeNode* result = nullptr;
-                result = childs[i]->getNodeContaining(point);
+                result = childNodes[i]->getNodeContaining(point);
 
                 if (result != nullptr)
                     return result;
@@ -200,11 +200,11 @@ void octreeNode::searchForObjects(glm::vec3& Center, float Radius, std::vector<i
         }
     }
 
-    if (childs != nullptr)
+    if (childNodes != nullptr)
     {
         for (int i = 0; i < 8; i++)
         {
-            childs[i]->searchForObjects(Center, Radius, foundObjects);
+            childNodes[i]->searchForObjects(Center, Radius, foundObjects);
         }
     }
 }
@@ -217,11 +217,11 @@ void octreeNode::addAllObjects(octreeNode* node, std::vector<int>& foundObjects)
         foundObjects.push_back(objects[i].hadIndex);
     }
 
-    if (childs != nullptr)
+    if (childNodes != nullptr)
     {
         for (int i = 0; i < 8; i++)
         {
-            childs[i]->addAllObjects(this, foundObjects);
+            childNodes[i]->addAllObjects(this, foundObjects);
         }
     }
 }
@@ -230,11 +230,11 @@ void octreeNode::debugGetNodesPositionAndSize(std::vector<debugNodeBox>& result)
 {
     result.push_back(debugNodeBox(this->center, this->size, this->depth));
 
-    if (childs != nullptr)
+    if (childNodes != nullptr)
     {
         for (int i = 0; i < 8; i++)
         {
-            childs[i]->debugGetNodesPositionAndSize(result);
+            childNodes[i]->debugGetNodesPositionAndSize(result);
         }
     }
 }
@@ -281,11 +281,11 @@ void octreeNode::isAtleastOnePointInSphere(glm::vec3& Center, float Radius)
             }
         }
 
-        if (childs != nullptr)
+        if (childNodes != nullptr)
         {
             for (int i = 0; i < 8; i++)
             {
-                childs[i]->isAtleastOnePointInSphere(Center, Radius);
+                childNodes[i]->isAtleastOnePointInSphere(Center, Radius);
             }
         }
     }
@@ -525,7 +525,7 @@ float octree::closestPointDistance(glm::vec3& referencePoint, float discardDista
 
         for (size_t i = 0; i < 8; i++)
         {
-            glm::vec3* ptr = closestPointsInNode(node->parent->childs[i], referencePoint, neighborsInRangeCount, discardDistance, minNeighborsInRange);
+            glm::vec3* ptr = closestPointsInNode(node->parent->childNodes[i], referencePoint, neighborsInRangeCount, discardDistance, minNeighborsInRange);
             closestPoints[arrayIndex++] = ptr;
         }
     }
@@ -572,7 +572,7 @@ float octree::closestPointDistance(glm::vec3& referencePoint, float discardDista
 
         for (size_t i = 0; i < 8; i++)
         {
-            glm::vec3* ptr = closestPointInNode(node->parent->childs[i], referencePoint, discardDistance);
+            glm::vec3* ptr = closestPointInNode(node->parent->childNodes[i], referencePoint, discardDistance);
             closestPoints[arrayIndex++] = ptr;
         }
     }

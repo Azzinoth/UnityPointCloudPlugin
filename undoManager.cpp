@@ -44,7 +44,7 @@ void undoManager::undo(int actionsToUndo)
 	// Take original data.
 	std::vector<VertexData> copyOfOriginalData = currentPointCloud->originalData;
 	
-	for (size_t i = undoActions.size() - 1; i >= 0; i--)
+	for (int i = undoActions.size() - 1; i >= 0; i--)
 	{
 		if (undoActions[i]->affectedPointCloud != currentPointCloud)
 			continue;

@@ -8,7 +8,7 @@ std::string vec3ToString(glm::vec3 vector)
 
 std::string mat4ToString(glm::mat4 matrix)
 {
-	string result;
+	std::string result;
 	result = "\n[ " + std::to_string(matrix[0][0]) + ", " + std::to_string(matrix[0][1]) + ", " + std::to_string(matrix[0][2]) + ", " + std::to_string(matrix[0][3]) + " ]\n";
 	result += "[ " + std::to_string(matrix[1][0]) + ", " + std::to_string(matrix[1][1]) + ", " + std::to_string(matrix[1][2]) + ", " + std::to_string(matrix[1][3]) + " ]\n";
 	result += "[ " + std::to_string(matrix[2][0]) + ", " + std::to_string(matrix[2][1]) + ", " + std::to_string(matrix[2][2]) + ", " + std::to_string(matrix[2][3]) + " ]\n";

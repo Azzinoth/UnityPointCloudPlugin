@@ -11,11 +11,8 @@
 #include "thirdparty/laszip/include/laszip_api.h"
 #include "thirdparty/cnpy/cnpy.h"
 
-//#include "APIFunctionsTools.h"
-
 void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* unityInterfaces);
 void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload();
-//UNITY_INTERFACE_EXPORT char* UNITY_INTERFACE_API RequestPointCloudSpatialInfoFromUnity(int pointCloudIndex);
 
 struct ModificationRequest
 {
@@ -31,15 +28,11 @@ struct ModificationRequest
 };
 
 static ModificationRequest MainRequest;
-
-//static std::vector<ModificationRequest> ModificationRequests;
-//static std::vector<ModificationRequest> RenderingThreadLocalCopy;
 static std::vector<int> LastResults;
-//static int LastResult = 0;
 
 static std::atomic<bool> bDeletionResultCountInProgress = false;
 
-void ApplyPoindModificationRequest(pointCloud* pointCloud, ID3D11DeviceContext* ctx, ModificationRequest Request);
+void ApplyPointModificationRequest(pointCloud* pointCloud, ID3D11DeviceContext* ctx, ModificationRequest Request);
 
 const std::string VertexShaderSource = R"(
 
@@ -61,12 +54,6 @@ void VS(float3 pos : POSITION, float4 color : COLOR, uint classification : CLASS
 	float3 CameraPosition = float3(-glmViewMatrix[3][1], -glmViewMatrix[3][2], glmViewMatrix[3][0]);
 	float3 WorldPosition = mul(worldMatrix, float4(pos, 1));
 
-	//if (FinalPosition.z > additionalFloat.x)
-	//	FinalColor = float4(1, 0, 0, 1);
-
-	//if (distance(CameraPosition, WorldPosition) > additionalFloat.x)
-		//FinalColor = float4(1, 0, 0, 1);
-
 	if (additionalFloat.x == 1 && classification != 0)
 	{
 		for (int i = 0; i < 512; i++)
@@ -80,10 +67,6 @@ void VS(float3 pos : POSITION, float4 color : COLOR, uint classification : CLASS
 				break;
 			}
 		}
-		
-
-		//if (classification == 0)
-		//		color.r += 0.5;
 	}
 
 	FinalColor = color;
