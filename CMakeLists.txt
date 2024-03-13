@@ -7,7 +7,7 @@ set(CMAKE_CONFIGURATION_TYPES Debug Release)
 # set the project name
 project(PointCloudPlugin LANGUAGES CXX C)
 
-set(CMAKE_CXX_FLAGS "/MP")
+set(CMAKE_CXX_FLAGS "/MP /EHsc")
 
 # Turn on the ability to create folders to organize projects (.vcproj)
 # It creates "CMakePredefinedTargets" folder by default and adds CMake
